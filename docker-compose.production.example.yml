@@ -1,0 +1,65 @@
+services:
+  app:
+    image: ${IMAGE:-ghcr.io/creup-dev/recuento:latest}
+    container_name: recuento-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      TZ: ${TZ:-Europe/Madrid}
+      HOST: 0.0.0.0
+      PORT: 3000
+      NITRO_PORT: 3000
+      NUXT_SITE_URL: ${NUXT_SITE_URL}
+    ports:
+      - ${APP_PORT:-3000}:3000
+    volumes:
+      - ${APP_BANNERS_DIR:-./data/banners}:/app/.output/public/banners
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/nodejs/bin/node",
+          "-e",
+          "const port=process.env.NITRO_PORT||process.env.PORT||'3000';fetch('http://127.0.0.1:'+port+'/health').then((response)=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: recuento-postgres
+    restart: unless-stopped
+    command:
+      [
+        "postgres",
+        "-c",
+        "timezone=${TZ:-Europe/Madrid}",
+        "-c",
+        "log_timezone=${TZ:-Europe/Madrid}",
+      ]
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=es-ES"
+    expose:
+      - 5432
+    volumes:
+      - recuento_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  recuento_postgres_data:
