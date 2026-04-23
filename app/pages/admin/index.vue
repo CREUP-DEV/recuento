@@ -11,6 +11,7 @@ interface AdminDashboardEvent {
 }
 
 const { t } = useI18n()
+const localePath = useLocalePath()
 
 const { data: eventsData } = await useFetch<{ data: AdminDashboardEvent[] }>('/api/admin/events')
 const events = computed(() => eventsData.value?.data ?? [])
@@ -79,14 +80,19 @@ const openVotes = computed(() =>
     <div class="border-default bg-default rounded-xl border p-6 shadow-sm">
       <h2 class="mb-4 text-lg font-semibold">{{ t('admin.quickActions') }}</h2>
       <div class="flex flex-wrap gap-3">
-        <UButton to="/admin/events/new" icon="i-tabler-plus" color="primary">
+        <UButton :to="localePath('/admin/events/new')" icon="i-tabler-plus" color="primary">
           {{ t('admin.newEvent') }}
         </UButton>
-        <UButton to="/admin/events" icon="i-tabler-list" color="neutral" variant="subtle">
+        <UButton
+          :to="localePath('/admin/events')"
+          icon="i-tabler-list"
+          color="neutral"
+          variant="subtle"
+        >
           {{ t('admin.viewEvents') }}
         </UButton>
         <UButton
-          to="/"
+          :to="localePath('/')"
           icon="i-tabler-external-link"
           color="neutral"
           variant="ghost"

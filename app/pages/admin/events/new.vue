@@ -6,6 +6,7 @@ definePageMeta({
 const { t } = useI18n()
 const toast = useToast()
 const router = useRouter()
+const localePath = useLocalePath()
 
 const form = ref({
   name: '',
@@ -34,7 +35,7 @@ async function submit() {
       body: form.value,
     })
     toast.add({ title: t('admin.toasts.eventCreated'), color: 'success' })
-    router.push(`/admin/events/${result.data.id}`)
+    router.push(localePath(`/admin/events/${result.data.id}`))
   } catch {
     toast.add({ title: t('admin.toasts.eventCreateError'), color: 'error' })
   } finally {
@@ -44,16 +45,16 @@ async function submit() {
 </script>
 
 <template>
-  <div class="animate-fade-slide-up mx-auto max-w-2xl">
+  <div class="animate-fade-slide-up mx-auto max-w-4xl">
     <h1 class="mb-8 text-2xl font-bold">{{ t('admin.newEvent') }}</h1>
 
     <form class="space-y-6" @submit.prevent="submit">
-      <UFormField :label="t('admin.name')">
+      <UFormField :label="t('admin.name')" class="w-full">
         <UInput
           v-model="form.name"
           :placeholder="t('admin.eventNamePlaceholder')"
           size="xl"
-          class="text-xl"
+          class="w-full text-xl"
         />
       </UFormField>
 
@@ -67,7 +68,7 @@ async function submit() {
       </div>
 
       <div class="flex justify-end gap-3 pt-4">
-        <UButton to="/admin/events" variant="ghost" color="neutral">
+        <UButton :to="localePath('/admin/events')" variant="ghost" color="neutral">
           {{ t('admin.cancel') }}
         </UButton>
         <UButton type="submit" color="primary" :loading="isSubmitting">

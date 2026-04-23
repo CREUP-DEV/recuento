@@ -7,40 +7,58 @@ export function useVoteKeyboard(
   options: Ref<KeyboardShortcutOption[]>,
   onIncrement: (optionId: string) => void,
   isActive: Ref<boolean>,
-  onDecrement: (optionId: string) => void
+  onUndo?: () => string | null,
+  onRedo?: () => string | null
 ) {
   const flashingOptionId = ref<string | null>(null)
-  const lastIncrementedId = ref<string | null>(null)
   let flashTimeout: ReturnType<typeof setTimeout> | null = null
+
+  function flashOption(optionId: string) {
+    flashingOptionId.value = optionId
+
+    if (flashTimeout) clearTimeout(flashTimeout)
+
+    flashTimeout = setTimeout(() => {
+      flashingOptionId.value = null
+    }, 300)
+  }
 
   function handleKeydown(e: KeyboardEvent) {
     if (!isActive.value) return
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
     if (e.ctrlKey || e.metaKey || e.altKey) return
 
-    if (e.key === 'Backspace' && lastIncrementedId.value) {
+    if (e.key === 'Backspace' && e.shiftKey && onRedo) {
       e.preventDefault()
-      onDecrement(lastIncrementedId.value)
-      flashingOptionId.value = lastIncrementedId.value
-      if (flashTimeout) clearTimeout(flashTimeout)
-      flashTimeout = setTimeout(() => {
-        flashingOptionId.value = null
-      }, 300)
+
+      const optionId = onRedo()
+
+      if (optionId) {
+        flashOption(optionId)
+      }
+
       return
     }
 
-    const option = options.value.find((o) => o.shortcut === e.key)
+    if (e.key === 'Backspace' && onUndo) {
+      e.preventDefault()
+
+      const optionId = onUndo()
+
+      if (optionId) {
+        flashOption(optionId)
+      }
+
+      return
+    }
+
+    const pressedKey = e.key.length === 1 ? e.key.toUpperCase() : e.key
+    const option = options.value.find((o) => o.shortcut === pressedKey)
     if (!option) return
 
     e.preventDefault()
     onIncrement(option.id)
-    lastIncrementedId.value = option.id
-
-    flashingOptionId.value = option.id
-    if (flashTimeout) clearTimeout(flashTimeout)
-    flashTimeout = setTimeout(() => {
-      flashingOptionId.value = null
-    }, 300)
+    flashOption(option.id)
   }
 
   onMounted(() => window.addEventListener('keydown', handleKeydown))
@@ -49,5 +67,5 @@ export function useVoteKeyboard(
     if (flashTimeout) clearTimeout(flashTimeout)
   })
 
-  return { flashingOptionId }
+  return { flashingOptionId, flashOption }
 }

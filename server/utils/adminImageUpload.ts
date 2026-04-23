@@ -1,6 +1,6 @@
 import { createError } from 'h3'
 import { mkdir, writeFile } from 'node:fs/promises'
-import { extname, join } from 'node:path'
+import { basename, extname, isAbsolute, join, resolve } from 'node:path'
 import sharp from 'sharp'
 
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif'] as const
@@ -48,15 +48,39 @@ export interface SaveBannerOptions {
   data: Buffer
   filename: string
   slug: string
-  uploadDir?: string
   publicPath?: string
+}
+
+const DEFAULT_BANNER_UPLOAD_DIR = 'public/banners'
+
+export function getBannerUploadDir() {
+  const configuredDir = process.env.APP_BANNERS_DIR?.trim()
+
+  if (!configuredDir) {
+    return join(process.cwd(), DEFAULT_BANNER_UPLOAD_DIR)
+  }
+
+  return isAbsolute(configuredDir) ? configuredDir : resolve(process.cwd(), configuredDir)
+}
+
+export function getBannerFilenameFromPublicPath(publicPath: string) {
+  const filename = basename(publicPath)
+
+  if (!filename || filename === '.' || filename === '..') {
+    return null
+  }
+
+  return filename
+}
+
+export function getBannerAbsolutePath(filename: string) {
+  return join(getBannerUploadDir(), filename)
 }
 
 export async function saveBannerImage({
   data,
   filename,
   slug,
-  uploadDir = 'public/banners',
   publicPath = '/banners',
 }: SaveBannerOptions): Promise<string> {
   if (data.length > MAX_FILE_SIZE) {
@@ -84,9 +108,14 @@ export async function saveBannerImage({
   }
 
   const outputFilename = `${slug}.webp`
-  const absoluteDir = join(process.cwd(), uploadDir)
-  await mkdir(absoluteDir, { recursive: true })
-  await writeFile(join(absoluteDir, outputFilename), outputData)
+  const absoluteDir = getBannerUploadDir()
+
+  try {
+    await mkdir(absoluteDir, { recursive: true })
+    await writeFile(join(absoluteDir, outputFilename), outputData)
+  } catch {
+    throw createError({ statusCode: 500, message: 'No se ha podido guardar el banner' })
+  }
 
   return `${publicPath}/${outputFilename}`
 }

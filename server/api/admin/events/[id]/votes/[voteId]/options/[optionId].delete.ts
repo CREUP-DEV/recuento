@@ -2,6 +2,7 @@ import { and, asc, eq } from 'drizzle-orm'
 import { db } from '#db'
 import { voteOptions } from '#db/schema'
 import { requireOptionInAdminScope, requireVoteInAdminScope } from '#server-utils/adminVoteScope'
+import { getVoteShortcut } from '~~/shared/constants/voteOptions'
 
 export default defineEventHandler(async (event) => {
   const eventId = getRouterParam(event, 'id')
@@ -38,7 +39,7 @@ export default defineEventHandler(async (event) => {
         .update(voteOptions)
         .set({
           order: index,
-          shortcut: index < 9 ? String(index + 1) : null,
+          shortcut: getVoteShortcut(index),
         })
         .where(eq(voteOptions.id, option.id))
     }

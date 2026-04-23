@@ -4,6 +4,7 @@ definePageMeta({
 })
 
 const { t } = useI18n()
+const localePath = useLocalePath()
 const toast = useToast()
 const { formatDateShort } = useLocaleFormatting()
 
@@ -49,7 +50,7 @@ async function toggleVisibility(ev: { id: string; visible: boolean }) {
   <div class="animate-fade-slide-up space-y-6">
     <div class="flex items-center justify-between gap-4">
       <h1 class="text-2xl font-bold">{{ t('admin.events') }}</h1>
-      <UButton to="/admin/events/new" icon="i-tabler-plus" color="primary">
+      <UButton :to="localePath('/admin/events/new')" icon="i-tabler-plus" color="primary">
         {{ t('admin.newEvent') }}
       </UButton>
     </div>
@@ -78,7 +79,7 @@ async function toggleVisibility(ev: { id: string; visible: boolean }) {
         <!-- Info -->
         <div class="min-w-0 flex-1">
           <NuxtLink
-            :to="`/admin/events/${ev.id}`"
+            :to="localePath(`/admin/events/${ev.id}`)"
             class="hover:text-creup-red-600 dark:hover:text-creup-red-400 font-semibold transition-colors"
           >
             {{ ev.name }}
@@ -101,7 +102,7 @@ async function toggleVisibility(ev: { id: string; visible: boolean }) {
             {{ ev.visible ? t('admin.visible') : t('admin.hidden') }}
           </UButton>
           <UButton
-            :to="`/admin/events/${ev.id}`"
+            :to="localePath(`/admin/events/${ev.id}`)"
             icon="i-tabler-edit"
             variant="ghost"
             color="neutral"
@@ -123,7 +124,7 @@ async function toggleVisibility(ev: { id: string; visible: boolean }) {
     <div v-else class="py-16 text-center">
       <UIcon name="i-tabler-calendar-off" class="text-muted mx-auto size-16" />
       <p class="text-muted mt-4 text-lg">{{ t('admin.noEvents') }}</p>
-      <UButton to="/admin/events/new" icon="i-tabler-plus" class="mt-4">
+      <UButton :to="localePath('/admin/events/new')" icon="i-tabler-plus" class="mt-4">
         {{ t('admin.createFirstEvent') }}
       </UButton>
     </div>

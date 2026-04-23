@@ -62,11 +62,10 @@ docker-compose.production.example.yml
 ### Code vs UI Text
 
 - **All code and code comments MUST be written in English**.
-- **Admin UI text MUST be Spanish** — admin pages, layouts, components, admin-facing API error messages.
 
-### Public Site i18n
+### UI i18n
 
-- All public user-facing text MUST go through Nuxt i18n.
+- All public and admin user-facing text MUST go through Nuxt i18n.
 - Supported locales: **`es`** (default, fallback) and **`en`** (en-GB, secondary).
 - When locale-specific resource is missing, fall back to Spanish.
 
@@ -223,8 +222,7 @@ refactor: extract vote chart component
 
 ## Pull Request Checklist
 
-- Public UI text uses i18n.
-- Admin UI text is Spanish.
+- UI text uses i18n.
 - Spanish remains default and fallback locale.
 - Admin auth relies on global middleware path.
 - Skeleton loaders and error states present for async sections.

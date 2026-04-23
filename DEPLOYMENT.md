@@ -32,6 +32,9 @@ VPS_HOST=usuario@servidor
 REMOTE_DIR=/ruta/al/proyecto/recuento
 NUXT_SITE_URL=https://recuento.creup.es
 
+# Por defecto, deploy.sh reutiliza la sesión de `docker login ghcr.io`
+# que ya tengas abierta en local.
+
 # Solo si el compose remoto vive fuera de REMOTE_DIR
 COMPOSE_DIR=/ruta/donde-esta-el-compose
 
@@ -41,8 +44,11 @@ COMPOSE_APP_SERVICE=app
 # Solo si hay un servicio PostgreSQL en ese compose
 COMPOSE_POSTGRES_SERVICE=postgres
 
-GHCR_USERNAME=<usuario>
-GHCR_TOKEN=<token>
+# Solo si quieres forzar login explícito desde el script
+# GHCR_LOGIN=true
+# GHCR_USERNAME=<usuario>
+# GHCR_TOKEN=<token>
+
 IMAGE_NAME=ghcr.io/creup-dev/recuento
 DOCKER_PLATFORM=linux/amd64
 APPLY_MIGRATIONS_ON_DEPLOY=true
@@ -52,6 +58,7 @@ Importante:
 
 - `COMPOSE_APP_SERVICE` y `COMPOSE_POSTGRES_SERVICE` son nombres de servicio de Compose, no `container_name`.
 - Si usas PostgreSQL externo, normalmente no necesitas `COMPOSE_POSTGRES_SERVICE`.
+- Si ya hiciste `docker login ghcr.io` en local, no pongas `GHCR_USERNAME` ni `GHCR_TOKEN` en `.env`.
 
 En el VPS:
 
@@ -134,7 +141,7 @@ bash ./deploy.sh
 El script:
 
 1. construye la imagen en local
-2. publica la imagen en GHCR
+2. publica la imagen en GHCR usando la sesión actual de Docker o un login explícito si `GHCR_LOGIN=true`
 3. conecta por SSH
 4. hace `docker compose pull`
 5. ejecuta migraciones si están activadas
@@ -161,6 +168,8 @@ En la web:
 
 Login falla:
 
+- hay credenciales antiguas en `.env` y no quieres usarlas
+- no has hecho `docker login ghcr.io` en la máquina local
 - `NUXT_SITE_URL` no coincide con el dominio real
 - callback OAuth incorrecta
 - `ADMIN_EMAILS` no contiene tu cuenta
@@ -175,6 +184,7 @@ Los banners desaparecen:
 - falta `APP_BANNERS_DIR`
 - el bind mount no existe
 - permisos incorrectos en el directorio persistente
+- el volumen no está montado en `/app/data/banners`
 
 `/health` devuelve 404 públicamente:
 

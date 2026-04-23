@@ -5,8 +5,9 @@ import { useAuth } from '~/composables/useAuth'
 import { getInitials } from '~/utils/initials'
 import { ADMIN_ROUTES } from '~~/shared/constants/adminRoutes'
 
-const { t } = useI18n()
+const { t, locale, setLocale } = useI18n()
 const { session, signOut } = useAuth()
+const localePath = useLocalePath()
 
 const route = useRoute()
 const isMobileSidebar = useMediaQuery('(max-width: 1023px)')
@@ -29,9 +30,13 @@ const toggleSidebarIcon = computed(() => {
     : 'i-tabler-layout-sidebar-left-expand'
 })
 
+const getLocalizedAdminRoute = (to: string) => localePath(to)
+
 const isNavItemActive = (to: string) => {
-  if (to === ADMIN_ROUTES.dashboard) return route.path === ADMIN_ROUTES.dashboard
-  return route.path === to || route.path.startsWith(`${to}/`)
+  const localizedRoute = getLocalizedAdminRoute(to)
+
+  if (to === ADMIN_ROUTES.dashboard) return route.path === localizedRoute
+  return route.path === localizedRoute || route.path.startsWith(`${localizedRoute}/`)
 }
 
 watch(
@@ -45,7 +50,7 @@ const navigationItems = computed<NavigationMenuItem[][]>(() => [
   [
     {
       label: t('admin.dashboard'),
-      to: ADMIN_ROUTES.dashboard,
+      to: getLocalizedAdminRoute(ADMIN_ROUTES.dashboard),
       icon: 'i-tabler-home',
       active: isNavItemActive(ADMIN_ROUTES.dashboard),
       onSelect: () => {
@@ -54,7 +59,7 @@ const navigationItems = computed<NavigationMenuItem[][]>(() => [
     },
     {
       label: t('admin.events'),
-      to: ADMIN_ROUTES.events,
+      to: getLocalizedAdminRoute(ADMIN_ROUTES.events),
       icon: 'i-tabler-calendar-event',
       active: isNavItemActive(ADMIN_ROUTES.events),
       onSelect: () => {
@@ -65,17 +70,34 @@ const navigationItems = computed<NavigationMenuItem[][]>(() => [
 ])
 
 const allNavItems = computed(() => [
-  { label: t('admin.dashboard'), to: ADMIN_ROUTES.dashboard },
-  { label: t('admin.events'), to: ADMIN_ROUTES.events },
+  { label: t('admin.dashboard'), to: getLocalizedAdminRoute(ADMIN_ROUTES.dashboard) },
+  { label: t('admin.events'), to: getLocalizedAdminRoute(ADMIN_ROUTES.events) },
 ])
 
 const currentPageLabel = computed(
-  () => allNavItems.value.find((item) => isNavItemActive(item.to))?.label
+  () =>
+    allNavItems.value.find((item) => route.path === item.to || route.path.startsWith(`${item.to}/`))
+      ?.label
 )
 
 const toggleSidebarLabel = computed(() =>
   sidebarOpen.value ? t('accessibility.collapseSidebar') : t('accessibility.expandSidebar')
 )
+
+const defaultLocaleItem = { code: 'es', flag: 'i-circle-flags-es', name: 'Español' } as const
+
+const localeItems = [
+  { code: 'es', flag: 'i-circle-flags-es', name: 'Español' },
+  { code: 'en', flag: 'i-circle-flags-gb', name: 'English' },
+] as const
+
+const currentLocale = computed(
+  () => localeItems.find((item) => item.code === locale.value) ?? defaultLocaleItem
+)
+
+async function switchLocale(code: 'es' | 'en') {
+  await setLocale(code)
+}
 
 useHead({
   titleTemplate: (titleChunk) =>
@@ -263,8 +285,32 @@ useHead({
             </div>
           </Transition>
           <div class="flex-1" />
+          <UDropdownMenu
+            :items="
+              localeItems.map((item) => ({
+                label: item.name,
+                icon: item.flag,
+                onSelect: () => switchLocale(item.code),
+              }))
+            "
+          >
+            <UButton
+              variant="ghost"
+              color="neutral"
+              size="sm"
+              :icon="currentLocale.flag"
+              :aria-label="t('accessibility.changeLanguage')"
+              :title="t('accessibility.changeLanguage')"
+            />
+          </UDropdownMenu>
           <UColorModeButton />
-          <UButton to="/" icon="i-tabler-external-link" variant="ghost" color="neutral" size="sm">
+          <UButton
+            :to="localePath('/')"
+            icon="i-tabler-external-link"
+            variant="ghost"
+            color="neutral"
+            size="sm"
+          >
             {{ t('admin.viewSite') }}
           </UButton>
         </header>

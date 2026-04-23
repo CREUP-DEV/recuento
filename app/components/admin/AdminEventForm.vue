@@ -1,4 +1,6 @@
 <script setup lang="ts">
+const { t } = useI18n()
+
 const props = defineProps<{
   modelValue: {
     name: string
@@ -22,17 +24,17 @@ function update(field: keyof typeof props.modelValue, value: string) {
 
 <template>
   <form class="space-y-6" @submit.prevent="emit('submit')">
-    <UFormField label="Nombre">
+    <UFormField :label="t('admin.name')">
       <UInput
         :value="modelValue.name"
-        placeholder="Nombre del evento"
+        :placeholder="t('admin.eventNamePlaceholder')"
         size="lg"
         @input="update('name', ($event.target as HTMLInputElement).value)"
       />
     </UFormField>
 
     <div class="grid gap-4 sm:grid-cols-2">
-      <UFormField label="Fecha de inicio">
+      <UFormField :label="t('events.startDate')">
         <UInput
           :value="modelValue.startDate"
           type="date"
@@ -40,7 +42,7 @@ function update(field: keyof typeof props.modelValue, value: string) {
           @input="update('startDate', ($event.target as HTMLInputElement).value)"
         />
       </UFormField>
-      <UFormField label="Fecha de fin">
+      <UFormField :label="t('events.endDate')">
         <UInput
           :value="modelValue.endDate"
           type="date"
@@ -54,10 +56,10 @@ function update(field: keyof typeof props.modelValue, value: string) {
 
     <div class="flex justify-end gap-3">
       <UButton variant="ghost" color="neutral" type="button" @click="emit('cancel')">
-        Cancelar
+        {{ t('admin.cancel') }}
       </UButton>
       <UButton type="submit" color="primary" :loading="loading">
-        {{ submitLabel ?? 'Guardar' }}
+        {{ submitLabel ?? t('admin.save') }}
       </UButton>
     </div>
   </form>

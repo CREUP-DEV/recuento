@@ -91,8 +91,11 @@ APPLY_MIGRATIONS_ON_DEPLOY="${APPLY_MIGRATIONS_ON_DEPLOY:-true}"
 COMPOSE_DIR="${COMPOSE_DIR:-$REMOTE_DIR}"
 COMPOSE_APP_SERVICE="${COMPOSE_APP_SERVICE:-app}"
 COMPOSE_POSTGRES_SERVICE="${COMPOSE_POSTGRES_SERVICE:-postgres}"
+GHCR_LOGIN="${GHCR_LOGIN:-false}"
 
-if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
+if [ "$GHCR_LOGIN" = "true" ]; then
+  : "${GHCR_USERNAME:?ERROR: GHCR_USERNAME is required when GHCR_LOGIN=true}"
+  : "${GHCR_TOKEN:?ERROR: GHCR_TOKEN is required when GHCR_LOGIN=true}"
   log "GHCR login"
   echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
 fi

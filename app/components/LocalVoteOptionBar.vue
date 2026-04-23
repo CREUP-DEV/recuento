@@ -7,6 +7,7 @@ const props = defineProps<{
   option: LocalVoteOption
   total: number
   flashing?: boolean
+  active?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -48,33 +49,35 @@ function confirmCount() {
     <!-- Label row -->
     <div class="flex items-center gap-2">
       <!-- Color swatch -->
-      <button
-        type="button"
-        class="size-3.5 shrink-0 rounded-full ring-1 ring-transparent transition hover:ring-2 hover:ring-offset-1 focus:outline-none focus-visible:ring-2"
-        :style="{
-          backgroundColor: option.color ?? 'var(--color-creup-blue-400)',
-          '--tw-ring-color': option.color ?? 'var(--color-creup-blue-400)',
-        }"
-        :aria-label="t('localVote.changeColor')"
-        :title="t('localVote.changeColor')"
-        @click="colorInput?.click()"
-      />
-      <input
-        ref="colorInput"
-        type="color"
-        class="sr-only"
-        :value="option.color ?? '#93c5fd'"
-        @change="onColorChange"
-      />
+      <div class="flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          class="size-3.5 rounded-full ring-1 ring-transparent transition hover:ring-2 hover:ring-offset-1 focus:outline-none focus-visible:ring-2"
+          :style="{
+            backgroundColor: option.color ?? 'var(--color-creup-blue-400)',
+            '--tw-ring-color': option.color ?? 'var(--color-creup-blue-400)',
+          }"
+          :aria-label="t('localVote.changeColor')"
+          :title="t('localVote.changeColor')"
+          @click="colorInput?.click()"
+        />
+        <input
+          ref="colorInput"
+          type="color"
+          class="sr-only"
+          :value="option.color ?? '#93c5fd'"
+          @change="onColorChange"
+        />
+
+        <span
+          v-if="option.shortcut"
+          class="text-muted-foreground shrink-0 font-mono text-xs font-semibold md:hidden"
+        >
+          {{ `${option.shortcut}.` }}
+        </span>
+      </div>
 
       <span class="flex-1 text-sm font-medium">{{ option.label }}</span>
-
-      <span
-        v-if="option.shortcut"
-        class="bg-muted text-muted-foreground rounded px-1.5 py-0.5 font-mono text-xs"
-      >
-        {{ option.shortcut }}
-      </span>
 
       <!-- Count (click to edit) -->
       <button
@@ -83,6 +86,7 @@ function confirmCount() {
         class="min-w-8 cursor-pointer bg-transparent text-right font-mono text-sm font-bold tabular-nums"
         :aria-label="t('localVote.editCount')"
         :title="t('localVote.editCount')"
+        :disabled="!active"
         @click="isEditingCount = true"
       >
         {{ option.count }}
@@ -94,6 +98,7 @@ function confirmCount() {
         class="w-16 text-center font-mono"
         type="number"
         min="0"
+        :disabled="!active"
         @blur="confirmCount"
         @keydown.enter.prevent="confirmCount"
         @keydown.escape.prevent="isEditingCount = false"
@@ -104,7 +109,7 @@ function confirmCount() {
         variant="ghost"
         color="neutral"
         size="xs"
-        :disabled="option.count <= 0"
+        :disabled="!active || option.count <= 0"
         :aria-label="t('admin.decrement')"
         @click="emit('decrement')"
       />
@@ -113,7 +118,9 @@ function confirmCount() {
         variant="ghost"
         color="neutral"
         size="xs"
+        :disabled="!active"
         :aria-label="t('admin.increment')"
+        :aria-keyshortcuts="option.shortcut ?? undefined"
         @click="emit('increment')"
       />
       <UTooltip

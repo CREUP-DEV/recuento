@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db } from '#db'
 import { voteOptions } from '#db/schema'
-import { DEFAULT_OPTION_COLORS } from '~~/shared/constants/voteOptions'
+import { DEFAULT_OPTION_COLORS, VOTE_SHORTCUTS } from '~~/shared/constants/voteOptions'
 import { requireVoteInAdminScope } from '#server-utils/adminVoteScope'
 import { createOptionSchema } from '#validation/options'
 
@@ -42,7 +42,7 @@ export default defineEventHandler(async (event) => {
       existingOptions.reduce((maxOrder, option) => Math.max(maxOrder, option.order), -1) + 1
     const defaultColor = DEFAULT_OPTION_COLORS[nextOrder % DEFAULT_OPTION_COLORS.length]
     const fallbackShortcut =
-      Array.from({ length: 9 }, (_, index) => String(index + 1)).find(
+      VOTE_SHORTCUTS.find(
         (shortcut) => !existingOptions.some((option) => option.shortcut === shortcut)
       ) ?? null
 

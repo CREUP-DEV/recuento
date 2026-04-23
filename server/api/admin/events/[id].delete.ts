@@ -1,8 +1,11 @@
 import { and, eq } from 'drizzle-orm'
 import { unlink } from 'node:fs/promises'
-import { join } from 'node:path'
 import { db } from '#db'
 import { events, votes } from '#db/schema'
+import {
+  getBannerAbsolutePath,
+  getBannerFilenameFromPublicPath,
+} from '#server-utils/adminImageUpload'
 import { emitVoteStatusChange } from '#server-utils/sseManager'
 
 export default defineEventHandler(async (event) => {
@@ -29,9 +32,9 @@ export default defineEventHandler(async (event) => {
   }
 
   if (deleted.banner) {
-    const filename = deleted.banner.split('/').pop()
+    const filename = getBannerFilenameFromPublicPath(deleted.banner)
     if (filename) {
-      await unlink(join(process.cwd(), 'public/banners', filename)).catch(() => {
+      await unlink(getBannerAbsolutePath(filename)).catch(() => {
         // File already gone — not an error
       })
     }

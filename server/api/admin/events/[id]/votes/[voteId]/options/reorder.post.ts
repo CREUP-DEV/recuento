@@ -3,6 +3,7 @@ import { asc, eq, sql } from 'drizzle-orm'
 import { db } from '#db'
 import { voteOptions } from '#db/schema'
 import { requireVoteInAdminScope } from '#server-utils/adminVoteScope'
+import { getVoteShortcut } from '~~/shared/constants/voteOptions'
 
 const reorderSchema = z.object({
   orderedIds: z.array(z.string()).min(1),
@@ -49,9 +50,7 @@ export default defineEventHandler(async (event) => {
     // Single UPDATE with CASE WHEN avoids unique constraint violations
     // that would occur with sequential per-row updates inside a transaction.
     const orderCases = orderedIds.map((id, idx) => sql`WHEN ${id} THEN ${idx}`)
-    const shortcutCases = orderedIds.map(
-      (id, idx) => sql`WHEN ${id} THEN ${idx < 9 ? String(idx + 1) : null}`
-    )
+    const shortcutCases = orderedIds.map((id, idx) => sql`WHEN ${id} THEN ${getVoteShortcut(idx)}`)
     await tx.execute(
       sql`UPDATE vote_options
           SET "order"  = CASE id ${sql.join(orderCases, sql` `)} END,
