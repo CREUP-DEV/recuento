@@ -2,6 +2,7 @@ import { createError } from 'h3'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { basename, extname, isAbsolute, join, resolve } from 'node:path'
 import sharp from 'sharp'
+import { logError } from './logger'
 
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif'] as const
 
@@ -103,7 +104,12 @@ export async function saveBannerImage({
   let outputData: Buffer
   try {
     outputData = await image.rotate().webp({ quality: 82 }).toBuffer()
-  } catch {
+  } catch (error) {
+    logError('banner.process', error, {
+      filename,
+      slug,
+      inputBytes: data.length,
+    })
     throw createError({ statusCode: 400, message: 'La imagen subida no se ha podido procesar' })
   }
 
@@ -113,7 +119,17 @@ export async function saveBannerImage({
   try {
     await mkdir(absoluteDir, { recursive: true })
     await writeFile(join(absoluteDir, outputFilename), outputData)
-  } catch {
+  } catch (error) {
+    logError('banner.write', error, {
+      filename,
+      outputFilename,
+      slug,
+      absoluteDir,
+      absolutePath: join(absoluteDir, outputFilename),
+      configuredDir: process.env.APP_BANNERS_DIR ?? null,
+      cwd: process.cwd(),
+      outputBytes: outputData.length,
+    })
     throw createError({ statusCode: 500, message: 'No se ha podido guardar el banner' })
   }
 

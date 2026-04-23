@@ -31,6 +31,8 @@ En tu máquina local, variables para `deploy.sh`:
 VPS_HOST=usuario@servidor
 REMOTE_DIR=/ruta/al/proyecto/recuento
 NUXT_SITE_URL=https://recuento.creup.es
+NUXT_UMAMI_HOST=https://umami.example.com
+NUXT_UMAMI_ID=<site-id>
 
 # Por defecto, deploy.sh reutiliza la sesión de `docker login ghcr.io`
 # que ya tengas abierta en local.
@@ -59,6 +61,7 @@ Importante:
 - `COMPOSE_APP_SERVICE` y `COMPOSE_POSTGRES_SERVICE` son nombres de servicio de Compose, no `container_name`.
 - Si usas PostgreSQL externo, normalmente no necesitas `COMPOSE_POSTGRES_SERVICE`.
 - Si ya hiciste `docker login ghcr.io` en local, no pongas `GHCR_USERNAME` ni `GHCR_TOKEN` en `.env`.
+- `NUXT_SITE_URL` y la configuración de Umami se inyectan en el build local de Nuxt. Si solo las defines en el `.env` del VPS, la imagen ya saldrá sin esa configuración.
 
 En el VPS:
 

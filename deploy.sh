@@ -30,6 +30,9 @@ build_and_push_image() {
     docker buildx build \
       --platform "$DOCKER_PLATFORM" \
       --build-arg "NUXT_SITE_URL=$NUXT_SITE_URL" \
+      --build-arg "NUXT_UMAMI_HOST=${NUXT_UMAMI_HOST:-}" \
+      --build-arg "NUXT_UMAMI_ID=${NUXT_UMAMI_ID:-}" \
+      --build-arg "NUXT_UMAMI_TAG=${NUXT_UMAMI_TAG:-}" \
       -t "$IMAGE" \
       -t "$latest_image" \
       --push \
@@ -40,6 +43,9 @@ build_and_push_image() {
   docker build \
     --platform "$DOCKER_PLATFORM" \
     --build-arg "NUXT_SITE_URL=$NUXT_SITE_URL" \
+    --build-arg "NUXT_UMAMI_HOST=${NUXT_UMAMI_HOST:-}" \
+    --build-arg "NUXT_UMAMI_ID=${NUXT_UMAMI_ID:-}" \
+    --build-arg "NUXT_UMAMI_TAG=${NUXT_UMAMI_TAG:-}" \
     -t "$IMAGE" \
     -t "$latest_image" \
     .

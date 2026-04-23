@@ -44,7 +44,7 @@ Requisitos:
 
 ## Variables de entorno
 
-Toda la configuración es runtime — la imagen Docker no contiene secretos.
+La mayor parte de la configuración es runtime, pero `NUXT_SITE_URL` y la configuración de Umami también se leen durante el build de Nuxt. Si despliegas con `deploy.sh`, esas variables deben existir en la máquina local desde la que construyes la imagen.
 
 Mínimas:
 
@@ -65,6 +65,7 @@ Opcionales:
 | `DATABASE_MAX_CONNECTIONS` | Máximo de conexiones al pool de BD | `10`            |
 | `NUXT_UMAMI_HOST`          | Host de Umami para analítica       | —               |
 | `NUXT_UMAMI_ID`            | ID del sitio en Umami              | —               |
+| `NUXT_UMAMI_TAG`           | Nombre del data attribute de Umami | —               |
 
 Variables útiles en local:
 
@@ -100,6 +101,8 @@ El despliegue recomendado es:
 ```sh
 bash ./deploy.sh
 ```
+
+Si usas Umami, asegúrate de que `NUXT_UMAMI_HOST` y `NUXT_UMAMI_ID` estén definidos en el entorno local antes de ejecutar `deploy.sh`; ponerlos solo en el `.env` del VPS no reconfigura una imagen ya construida.
 
 Archivos clave:
 
