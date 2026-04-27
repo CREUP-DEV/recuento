@@ -1,7 +1,6 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, exists, sql } from 'drizzle-orm'
 import { db } from '#db'
-import { voteOptions } from '#db/schema'
-import { requireOptionInAdminScope, requireVoteInAdminScope } from '#server-utils/adminVoteScope'
+import { events, votes, voteOptions } from '#db/schema'
 import { emitVoteCountUpdate } from '#server-utils/voteCountEmitter'
 
 export default defineEventHandler(async (event) => {
@@ -12,20 +11,29 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'IDs requeridos' })
   }
 
-  const vote = await requireVoteInAdminScope(eventId, voteId)
-  if (!vote.open) {
-    throw createError({ statusCode: 409, message: 'La votación no está abierta' })
-  }
-  await requireOptionInAdminScope(eventId, voteId, optionId)
-
   const [updated] = await db
     .update(voteOptions)
     .set({ count: sql`GREATEST(${voteOptions.count} - 1, 0)` })
-    .where(and(eq(voteOptions.id, optionId), eq(voteOptions.voteId, voteId)))
+    .where(
+      and(
+        eq(voteOptions.id, optionId),
+        eq(voteOptions.voteId, voteId),
+        exists(
+          db
+            .select({ id: votes.id })
+            .from(votes)
+            .innerJoin(events, eq(events.id, votes.eventId))
+            .where(and(eq(votes.id, voteId), eq(votes.eventId, eventId), eq(votes.open, true)))
+        )
+      )
+    )
     .returning()
 
   if (!updated) {
-    throw createError({ statusCode: 404, message: 'Opción no encontrada' })
+    throw createError({
+      statusCode: 409,
+      message: 'La votación no está abierta o la opción no existe',
+    })
   }
 
   emitVoteCountUpdate(voteId)

@@ -126,6 +126,30 @@ async function addVote() {
     isAddingVote.value = false
   }
 }
+
+// ─── Targeted patch helpers (avoid full refresh for non-structural changes) ───
+
+function patchVote(voteId: string, fields: Partial<AdminEventVote>) {
+  if (!eventData.value?.data) return
+  const vote = eventData.value.data.votes.find((v) => v.id === voteId)
+  if (vote) Object.assign(vote, fields)
+}
+
+function patchOption(voteId: string, optionId: string, fields: Partial<AdminEventVoteOption>) {
+  if (!eventData.value?.data) return
+  const vote = eventData.value.data.votes.find((v) => v.id === voteId)
+  const option = vote?.options.find((o) => o.id === optionId)
+  if (option) Object.assign(option, fields)
+}
+
+// ─── SSE: refresh on external vote-status-change ──────────────────────────────
+
+onMounted(() => {
+  if (import.meta.server) return
+  const sse = new EventSource('/api/sse/votes')
+  sse.addEventListener('vote-status-change', () => refresh())
+  onBeforeUnmount(() => sse.close())
+})
 </script>
 
 <template>
@@ -140,7 +164,7 @@ async function addVote() {
       <div class="mb-6">
         <div
           v-if="ev.banner"
-          class="bg-muted relative aspect-[7/2] w-full overflow-hidden rounded-lg"
+          class="bg-muted relative aspect-7/2 w-full overflow-hidden rounded-lg"
         >
           <NuxtImg
             :src="ev.banner"
@@ -221,6 +245,8 @@ async function addVote() {
         :vote="vote"
         :event-id="eventId"
         @refresh="refresh"
+        @update-vote="(fields) => patchVote(vote.id, fields)"
+        @update-option="(optionId, fields) => patchOption(vote.id, optionId, fields)"
       />
 
       <div v-if="!ev.votes?.length" class="py-8 text-center">

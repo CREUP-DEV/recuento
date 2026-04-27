@@ -1,7 +1,7 @@
 import { and, asc, eq } from 'drizzle-orm'
 import { db } from '../db'
 import { votes, voteOptions, events } from '../db/schema'
-import { emitVoteUpdate } from './sseManager'
+import { emitVoteUpdate, getSSESubscriberCount } from './sseManager'
 
 const pendingEmits = new Map<string, ReturnType<typeof setTimeout>>()
 
@@ -13,6 +13,8 @@ export function emitVoteCountUpdate(voteId: string): void {
     voteId,
     setTimeout(async () => {
       pendingEmits.delete(voteId)
+
+      if (getSSESubscriberCount() === 0) return
 
       const rows = await db
         .select({

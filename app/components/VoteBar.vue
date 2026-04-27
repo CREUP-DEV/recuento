@@ -9,7 +9,7 @@ const pct = computed(() => (props.total > 0 ? (props.count / props.total) * 100 
 </script>
 
 <template>
-  <div class="bg-muted h-8 overflow-hidden rounded-lg">
+  <div class="bg-muted h-8 overflow-hidden rounded-lg" aria-hidden="true">
     <div
       class="flex h-full items-center rounded-lg px-3 transition-all duration-500 ease-out"
       :style="{

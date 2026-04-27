@@ -10,6 +10,29 @@ const umamiHost = getOptionalConfigUrl(process.env.NUXT_UMAMI_HOST, 'NUXT_UMAMI_
 const umamiOrigin = umamiHost ? new URL(umamiHost).origin : null
 const adminAuthHandler = './server/handlers/admin-auth.ts'
 
+const buildCsp = () => ({
+  'default-src': ["'self'"],
+  'script-src': [
+    "'self'",
+    "'nonce-{{nonce}}'",
+    "'strict-dynamic'",
+    ...(isDev ? ["'unsafe-eval'"] : []),
+  ],
+  'style-src': ["'self'", "'unsafe-inline'"],
+  'style-src-attr': ["'unsafe-inline'"],
+  'img-src': ["'self'", 'data:', 'blob:', 'https://lh3.googleusercontent.com'],
+  'font-src': ["'self'", 'data:'],
+  'connect-src': [
+    "'self'",
+    ...(umamiOrigin ? [umamiOrigin] : []),
+    ...(isDev ? ['ws:', 'wss:'] : []),
+  ],
+  'frame-ancestors': ["'none'"],
+  'object-src': ["'none'"],
+  'base-uri': ["'self'"],
+  'form-action': ["'self'"],
+})
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2026-04-09',
@@ -75,28 +98,7 @@ export default defineNuxtConfig({
   security: {
     nonce: true,
     headers: {
-      contentSecurityPolicy: {
-        'default-src': ["'self'"],
-        'script-src': [
-          "'self'",
-          "'nonce-{{nonce}}'",
-          "'strict-dynamic'",
-          ...(isDev ? ["'unsafe-eval'"] : []),
-        ],
-        'style-src': ["'self'", "'unsafe-inline'"],
-        'style-src-attr': ["'unsafe-inline'"],
-        'img-src': ["'self'", 'data:', 'blob:', 'https://lh3.googleusercontent.com'],
-        'font-src': ["'self'", 'data:'],
-        'connect-src': [
-          "'self'",
-          ...(umamiOrigin ? [umamiOrigin] : []),
-          ...(isDev ? ['ws:', 'wss:'] : []),
-        ],
-        'frame-ancestors': ["'none'"],
-        'object-src': ["'none'"],
-        'base-uri': ["'self'"],
-        'form-action': ["'self'"],
-      },
+      contentSecurityPolicy: buildCsp(),
       crossOriginEmbedderPolicy: false,
       crossOriginResourcePolicy: 'same-site',
       strictTransportSecurity: {
@@ -193,28 +195,7 @@ export default defineNuxtConfig({
     '/admin/**': {
       security: {
         headers: {
-          contentSecurityPolicy: {
-            'default-src': ["'self'"],
-            'script-src': [
-              "'self'",
-              "'nonce-{{nonce}}'",
-              "'strict-dynamic'",
-              ...(isDev ? ["'unsafe-eval'"] : []),
-            ],
-            'style-src': ["'self'", "'unsafe-inline'"],
-            'style-src-attr': ["'unsafe-inline'"],
-            'img-src': ["'self'", 'data:', 'blob:', 'https://lh3.googleusercontent.com'],
-            'font-src': ["'self'", 'data:'],
-            'connect-src': [
-              "'self'",
-              ...(umamiOrigin ? [umamiOrigin] : []),
-              ...(isDev ? ['ws:', 'wss:'] : []),
-            ],
-            'frame-ancestors': ["'none'"],
-            'object-src': ["'none'"],
-            'base-uri': ["'self'"],
-            'form-action': ["'self'"],
-          },
+          contentSecurityPolicy: buildCsp(),
         },
       },
     },

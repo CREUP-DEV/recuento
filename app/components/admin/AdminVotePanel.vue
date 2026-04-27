@@ -30,7 +30,11 @@ const props = defineProps<{
   eventId: string
 }>()
 
-const emit = defineEmits<{ refresh: [] }>()
+const emit = defineEmits<{
+  refresh: []
+  'update-vote': [fields: Partial<Vote>]
+  'update-option': [optionId: string, fields: Partial<VoteOption>]
+}>()
 
 const { t } = useI18n()
 const toast = useToast()
@@ -92,9 +96,12 @@ const { flashingOptionId, flashOption } = useVoteKeyboard(
 // ─── Vote actions ─────────────────────────────────────────────────────────────
 
 const showDeleteVoteModal = ref(false)
+const isTogglingOpen = ref(false)
 
 async function toggleOpen() {
+  if (isTogglingOpen.value) return
   const action = props.vote.open ? 'close' : 'open'
+  isTogglingOpen.value = true
   try {
     await $fetch(`/api/admin/events/${props.eventId}/votes/${props.vote.id}/${action}`, {
       method: 'POST',
@@ -110,16 +117,19 @@ async function toggleOpen() {
   } catch (err: unknown) {
     const msg = (err as { data?: { message?: string } }).data?.message
     toast.add({ title: msg ?? t('admin.toasts.voteDeleteError'), color: 'error' })
+  } finally {
+    isTogglingOpen.value = false
   }
 }
 
 async function toggleVisibility() {
+  const newVisible = !props.vote.visible
   try {
     await $fetch(`/api/admin/events/${props.eventId}/votes/${props.vote.id}`, {
       method: 'PATCH',
-      body: { visible: !props.vote.visible },
+      body: { visible: newVisible },
     })
-    emit('refresh')
+    emit('update-vote', { visible: newVisible })
   } catch {
     toast.add({ title: t('admin.toasts.voteVisibilityError'), color: 'error' })
   }
@@ -152,14 +162,6 @@ function removeLastHistoryEntry(optionId: string) {
   return index
 }
 
-function restoreHistoryEntry(optionId: string, index: number) {
-  if (index === -1) {
-    return
-  }
-
-  voteHistory.value.splice(index, 0, optionId)
-}
-
 async function incrementOption(optionId: string) {
   if (!props.vote.open) {
     return
@@ -178,10 +180,9 @@ async function incrementOption(optionId: string) {
       { method: 'POST' }
     )
   } catch {
-    // Revert optimistic update
-    const original = props.vote.options.find((o) => o.id === optionId)
-    if (original) localCounts.value[optionId] = original.count
     removeLastHistoryEntry(optionId)
+    localCounts.value = {}
+    emit('refresh')
     toast.add({ title: t('common.error'), color: 'error' })
   }
 }
@@ -196,7 +197,6 @@ async function decrementOption(optionId: string) {
     return
   }
 
-  const removedHistoryIndex = removeLastHistoryEntry(optionId)
   localCounts.value[optionId] = Math.max(0, (localCounts.value[optionId] ?? current.count) - 1)
   redoHistory.value = []
 
@@ -206,9 +206,8 @@ async function decrementOption(optionId: string) {
       { method: 'POST' }
     )
   } catch {
-    const original = props.vote.options.find((o) => o.id === optionId)
-    if (original) localCounts.value[optionId] = original.count
-    restoreHistoryEntry(optionId, removedHistoryIndex)
+    localCounts.value = {}
+    emit('refresh')
     toast.add({ title: t('common.error'), color: 'error' })
   }
 }
@@ -239,10 +238,8 @@ function undoLastVote() {
     `/api/admin/events/${props.eventId}/votes/${props.vote.id}/options/${optionId}/decrement`,
     { method: 'POST' }
   ).catch(() => {
-    const original = props.vote.options.find((option) => option.id === optionId)
-    if (original) localCounts.value[optionId] = original.count
-    redoHistory.value.pop()
-    voteHistory.value.push(optionId)
+    localCounts.value = {}
+    emit('refresh')
     toast.add({ title: t('common.error'), color: 'error' })
   })
 
@@ -283,10 +280,8 @@ function redoLastVote() {
     `/api/admin/events/${props.eventId}/votes/${props.vote.id}/options/${optionId}/increment`,
     { method: 'POST' }
   ).catch(() => {
-    const original = props.vote.options.find((option) => option.id === optionId)
-    if (original) localCounts.value[optionId] = original.count
-    voteHistory.value.pop()
-    redoHistory.value.push(optionId)
+    localCounts.value = {}
+    emit('refresh')
     toast.add({ title: t('common.error'), color: 'error' })
   })
 
@@ -331,8 +326,8 @@ async function setOptionCount(optionId: string, count: number) {
       { method: 'POST', body: { count } }
     )
   } catch {
-    const original = props.vote.options.find((o) => o.id === optionId)
-    if (original) localCounts.value[optionId] = original.count
+    localCounts.value = {}
+    emit('refresh')
     toast.add({ title: t('common.error'), color: 'error' })
   }
 }
@@ -343,7 +338,7 @@ async function updateOptionColor(optionId: string, color: string | null) {
       method: 'PATCH',
       body: { color },
     })
-    emit('refresh')
+    emit('update-option', optionId, { color })
   } catch {
     toast.add({ title: t('admin.toasts.colorError'), color: 'error' })
   }
@@ -410,7 +405,7 @@ async function addOptionWithLabel(label: string) {
     redoHistory.value = []
     emit('refresh')
   } catch {
-    toast.add({ title: t('admin.toasts.optionDeleteError'), color: 'error' })
+    toast.add({ title: t('admin.toasts.optionAddError'), color: 'error' })
   }
 }
 
@@ -423,6 +418,13 @@ const activeShortcuts = computed(() =>
     .map((option) => option.shortcut)
     .filter((shortcut): shortcut is string => Boolean(shortcut))
 )
+
+// Warn before unloading while a vote is active so admins don't accidentally lose context
+useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
+  if (props.vote.open) {
+    e.preventDefault()
+  }
+})
 </script>
 
 <template>
@@ -493,6 +495,7 @@ const activeShortcuts = computed(() =>
           variant="subtle"
           color="success"
           size="sm"
+          :loading="isTogglingOpen"
           :aria-label="t('admin.openVote')"
           @click="toggleOpen"
         />
@@ -502,6 +505,7 @@ const activeShortcuts = computed(() =>
           variant="subtle"
           color="error"
           size="sm"
+          :loading="isTogglingOpen"
           :aria-label="t('admin.closeVote')"
           @click="toggleOpen"
         />
@@ -570,7 +574,7 @@ const activeShortcuts = computed(() =>
                 v-for="(option, index) in displayOptions"
                 :key="option.id"
                 type="button"
-                class="focus-visible:outline-primary flex size-[3.5rem] items-center justify-center rounded-xl text-base font-bold shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+                class="focus-visible:outline-primary flex size-14 items-center justify-center rounded-xl text-base font-bold shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2"
                 :style="getMobileOptionButtonStyle(getOptionDisplayColor(option.color, index))"
                 :aria-label="t('admin.incrementOption', { option: option.label })"
                 :aria-keyshortcuts="option.shortcut ?? undefined"
@@ -583,7 +587,7 @@ const activeShortcuts = computed(() =>
               <div class="flex gap-2">
                 <button
                   type="button"
-                  class="bg-inverted text-inverted focus-visible:outline-primary flex size-[3.5rem] items-center justify-center rounded-xl shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  class="bg-inverted text-inverted focus-visible:outline-primary flex size-14 items-center justify-center rounded-xl shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   :disabled="!canUndo"
                   :aria-label="t('admin.undoLastVoteButton')"
                   :title="t('admin.undoLastVoteButton')"
@@ -594,7 +598,7 @@ const activeShortcuts = computed(() =>
 
                 <button
                   type="button"
-                  class="bg-inverted text-inverted focus-visible:outline-primary flex size-[3.5rem] items-center justify-center rounded-xl shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  class="bg-inverted text-inverted focus-visible:outline-primary flex size-14 items-center justify-center rounded-xl shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   :disabled="!canRedo"
                   :aria-label="t('admin.redoLastVoteButton')"
                   :title="t('admin.redoLastVoteButton')"
@@ -678,7 +682,13 @@ const activeShortcuts = computed(() =>
     <template #content>
       <div class="p-6">
         <h3 class="text-lg font-semibold">{{ t('admin.deleteOption') }}</h3>
-        <p class="text-muted mt-2">{{ t('admin.deleteOptionMessage') }}</p>
+        <p class="text-muted mt-2">
+          {{
+            t('admin.deleteOptionMessage', {
+              name: displayOptions.find((o) => o.id === pendingDeleteOptionId)?.label ?? '',
+            })
+          }}
+        </p>
         <div class="mt-6 flex justify-end gap-3">
           <UButton variant="ghost" color="neutral" @click="pendingDeleteOptionId = null">
             {{ t('admin.cancel') }}

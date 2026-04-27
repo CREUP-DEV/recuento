@@ -156,6 +156,10 @@ async function copyResults() {
 
         <div class="mt-3 flex items-center gap-3">
           <VoteStatus :open="state.open" />
+          <span class="text-muted flex items-center gap-1 text-xs">
+            <UIcon name="i-tabler-device-floppy" class="size-3.5 shrink-0" aria-hidden="true" />
+            {{ t('localVote.description') }}
+          </span>
         </div>
       </div>
 

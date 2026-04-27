@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { extname } from 'node:path'
 import {
   getBannerAbsolutePath,
@@ -22,10 +22,24 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const file = await readFile(getBannerAbsolutePath(filename))
+    const absolutePath = getBannerAbsolutePath(filename)
+    const [file, fileStat] = await Promise.all([readFile(absolutePath), stat(absolutePath)])
+
+    const lastModified = fileStat.mtime.toUTCString()
+    const etag = `"${fileStat.size}-${fileStat.mtimeMs}"`
+
+    if (
+      getRequestHeader(event, 'if-none-match') === etag ||
+      getRequestHeader(event, 'if-modified-since') === lastModified
+    ) {
+      setResponseStatus(event, 304)
+      return null
+    }
 
     setResponseHeader(event, 'Content-Type', 'image/webp')
-    setResponseHeader(event, 'Cache-Control', 'public, max-age=60')
+    setResponseHeader(event, 'Cache-Control', 'public, max-age=3600, must-revalidate')
+    setResponseHeader(event, 'Last-Modified', lastModified)
+    setResponseHeader(event, 'ETag', etag)
 
     return file
   } catch {

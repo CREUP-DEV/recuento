@@ -18,12 +18,14 @@ export interface ActiveVoteData {
 // Only accessed inside onMounted (client-only), so safe in SSR environments.
 let _sse: EventSource | null = null
 let _subscribers = 0
+let _reconnectDelay = 1_000
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     _sse?.close()
     _sse = null
     _subscribers = 0
+    _reconnectDelay = 1_000
   })
 }
 
@@ -46,14 +48,22 @@ export function useActiveVote() {
   function connectSSE() {
     if (_sse) return
     _sse = new EventSource('/api/sse/votes')
+
+    _sse.addEventListener('connected', () => {
+      _reconnectDelay = 1_000
+    })
+
     _sse.addEventListener('vote-status-change', () => refresh())
+
     _sse.onerror = () => {
       _sse?.close()
       _sse = null
       if (_subscribers > 0) {
+        const jitter = 0.75 + Math.random() * 0.5
         setTimeout(() => {
+          _reconnectDelay = Math.min(_reconnectDelay * 2, 30_000)
           if (_subscribers > 0) connectSSE()
-        }, 5_000)
+        }, _reconnectDelay * jitter)
       }
     }
   }

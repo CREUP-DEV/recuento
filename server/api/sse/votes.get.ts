@@ -1,7 +1,21 @@
 import type { SSEEvent } from '~~/shared/types/sseEvents'
-import { onSSEEvent, onSSEShutdown } from '../../utils/sseManager'
+import {
+  onSSEEvent,
+  onSSEShutdown,
+  trackSSEConnection,
+  releaseSSEConnection,
+} from '../../utils/sseManager'
 
 export default defineEventHandler(async (event) => {
+  const ip =
+    (event.node.req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
+    event.node.req.socket.remoteAddress ??
+    'unknown'
+
+  if (!trackSSEConnection(ip)) {
+    throw createError({ statusCode: 429, message: 'Too many SSE connections from this address' })
+  }
+
   const query = getQuery(event)
   const filterVoteId = typeof query.voteId === 'string' ? query.voteId : null
 
@@ -39,6 +53,7 @@ export default defineEventHandler(async (event) => {
     const unsubscribeShutdown = onSSEShutdown(() => {
       clearInterval(heartbeat)
       unsubscribeSSE()
+      releaseSSEConnection(ip)
       try {
         writer.end()
       } catch {
@@ -50,6 +65,7 @@ export default defineEventHandler(async (event) => {
     event.node.req.once('close', () => {
       clearInterval(heartbeat)
       unsubscribeSSE()
+      releaseSSEConnection(ip)
       unsubscribeShutdown()
       resolve()
     })

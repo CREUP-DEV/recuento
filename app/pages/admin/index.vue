@@ -3,27 +3,19 @@ definePageMeta({
   layout: 'admin',
 })
 
-interface AdminDashboardEvent {
-  visible: boolean
-  votes?: Array<{
-    open: boolean
-  }>
+interface AdminStats {
+  totalEvents: number
+  activeEvents: number
+  openVotes: number
 }
 
 const { t } = useI18n()
 const localePath = useLocalePath()
 
-const { data: eventsData } = await useFetch<{ data: AdminDashboardEvent[] }>('/api/admin/events')
-const events = computed(() => eventsData.value?.data ?? [])
-
-const totalEvents = computed(() => events.value.length)
-const activeEvents = computed(() => events.value.filter((event) => event.visible).length)
-const openVotes = computed(() =>
-  events.value.reduce(
-    (count: number, event) => count + (event.votes?.filter((vote) => vote.open).length ?? 0),
-    0
-  )
-)
+const { data: statsData } = await useFetch<{ data: AdminStats }>('/api/admin/stats')
+const totalEvents = computed(() => statsData.value?.data.totalEvents ?? 0)
+const activeEvents = computed(() => statsData.value?.data.activeEvents ?? 0)
+const openVotes = computed(() => statsData.value?.data.openVotes ?? 0)
 </script>
 
 <template>

@@ -18,7 +18,10 @@ function isSameOriginAdminRequest(event: H3Event) {
     }
   }
 
+  // Sec-Fetch-Site is the fallback for same-origin navigations that omit Origin.
+  // If neither header is present (curl, server-to-server), deny — don't assume safe.
   const fetchSite = getRequestHeader(event, 'sec-fetch-site')?.trim().toLowerCase()
+  if (!fetchSite) return false
   return fetchSite === 'same-origin'
 }
 
