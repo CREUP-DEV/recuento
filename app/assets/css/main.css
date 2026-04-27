@@ -189,6 +189,43 @@ html {
   transform: translateY(-8px);
 }
 
+.vote-controls-enter-active,
+.vote-controls-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.vote-controls-enter-from,
+.vote-controls-leave-to {
+  opacity: 0;
+  transform: translateY(6px) scale(0.96);
+}
+
+.vote-float-enter-active,
+.vote-float-leave-active {
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease;
+}
+
+.vote-float-enter-from,
+.vote-float-leave-to {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+.vote-dragging {
+  opacity: 1 !important;
+  cursor: grabbing !important;
+  box-shadow: none !important;
+  transition: none !important;
+}
+
+.vote-drag-ghost {
+  opacity: 0.18 !important;
+}
+
 /* ─── Skip links ──────────────────────────────────────────────────────────── */
 
 .skip-link {

@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { SUGGESTED_OPTION_LABEL_KEYS, getVoteShortcut } from '~~/shared/constants/voteOptions'
+import draggable from 'vuedraggable'
+import {
+  DEFAULT_OPTION_COLORS,
+  SUGGESTED_OPTION_LABEL_KEYS,
+  getVoteShortcut,
+} from '~~/shared/constants/voteOptions'
 import {
   buildVoteResultsText,
   getMobileOptionButtonStyle,
@@ -60,6 +65,39 @@ const totalVotes = computed(() =>
 )
 const canUndo = computed(() => voteHistory.value.length > 0)
 const canRedo = computed(() => redoHistory.value.length > 0)
+const sortableOptions = ref<VoteOption[]>([])
+const isReorderingOptions = ref(false)
+const dragStartOptions = ref<VoteOption[]>([])
+const { listContainerRef: closedOptionsContainerRef, animateLayoutChange } = useListFlipAnimation()
+
+function withReassignedShortcuts(options: VoteOption[]) {
+  return options.map((option, index) => ({
+    ...option,
+    shortcut: getVoteShortcut(index),
+  }))
+}
+
+function collectColorOverrides(options: VoteOption[]) {
+  const overrides: Record<string, string> = {}
+  options.forEach((option, i) => {
+    if (option.color === null) {
+      overrides[option.id] = DEFAULT_OPTION_COLORS[i % DEFAULT_OPTION_COLORS.length] ?? '#93c5fd'
+    }
+  })
+  return overrides
+}
+
+watch(
+  () => props.vote.options,
+  (options) => {
+    if (isReorderingOptions.value) {
+      return
+    }
+
+    sortableOptions.value = withReassignedShortcuts(options)
+  },
+  { immediate: true }
+)
 
 // Keep local counts in sync when options are added/removed externally
 watch(
@@ -338,6 +376,9 @@ async function updateOptionColor(optionId: string, color: string | null) {
       method: 'PATCH',
       body: { color },
     })
+    sortableOptions.value = sortableOptions.value.map((option) =>
+      option.id === optionId ? { ...option, color } : option
+    )
     emit('update-option', optionId, { color })
   } catch {
     toast.add({ title: t('admin.toasts.colorError'), color: 'error' })
@@ -361,28 +402,96 @@ async function executeDeleteOption() {
   }
 }
 
+async function persistOptionOrder(orderedIds: string[], colorOverrides?: Record<string, string>) {
+  try {
+    await $fetch(`/api/admin/events/${props.eventId}/votes/${props.vote.id}/options/reorder`, {
+      method: 'POST',
+      body: {
+        orderedIds,
+        ...(colorOverrides && Object.keys(colorOverrides).length > 0 ? { colorOverrides } : {}),
+      },
+    })
+    voteHistory.value = []
+    redoHistory.value = []
+    emit('update-vote', {
+      options: sortableOptions.value.map((option) => ({ ...option })),
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function moveOption(fromIndex: number, toIndex: number) {
-  if (toIndex < 0 || toIndex >= props.vote.options.length) {
+  if (toIndex < 0 || toIndex >= sortableOptions.value.length || isReorderingOptions.value) {
     return
   }
 
-  const reordered = [...props.vote.options]
+  const previousOptions = sortableOptions.value.map((option) => ({ ...option }))
+  const colorOverrides = collectColorOverrides(sortableOptions.value)
+
+  const reordered = sortableOptions.value.map((option) => ({
+    ...option,
+    color: colorOverrides[option.id] ?? option.color,
+  }))
   const [moved] = reordered.splice(fromIndex, 1)
   if (!moved) {
     return
   }
+
   reordered.splice(toIndex, 0, moved)
-  try {
-    await $fetch(`/api/admin/events/${props.eventId}/votes/${props.vote.id}/options/reorder`, {
-      method: 'POST',
-      body: { orderedIds: reordered.map((o) => o.id) },
+  const normalizedOptions = withReassignedShortcuts(reordered)
+
+  await animateLayoutChange(() => {
+    sortableOptions.value = normalizedOptions
+  })
+
+  isReorderingOptions.value = true
+
+  const persisted = await persistOptionOrder(
+    normalizedOptions.map((option) => option.id),
+    colorOverrides
+  )
+
+  if (!persisted) {
+    await animateLayoutChange(() => {
+      sortableOptions.value = previousOptions
     })
-    voteHistory.value = []
-    redoHistory.value = []
-    emit('refresh')
-  } catch {
     toast.add({ title: t('admin.toasts.reorderError'), color: 'error' })
   }
+
+  isReorderingOptions.value = false
+}
+
+function onDragStart() {
+  dragStartOptions.value = sortableOptions.value.map((option) => ({ ...option }))
+}
+
+async function onDragChange(event: { moved?: { oldIndex: number; newIndex: number } }) {
+  if (!event.moved) {
+    return
+  }
+
+  const previousOptions = dragStartOptions.value.map((option) => ({ ...option }))
+  const colorOverrides = collectColorOverrides(sortableOptions.value)
+
+  isReorderingOptions.value = true
+  sortableOptions.value.forEach((option, i) => {
+    if (colorOverrides[option.id]) option.color = colorOverrides[option.id]!
+    option.shortcut = getVoteShortcut(i)
+  })
+
+  const persisted = await persistOptionOrder(
+    sortableOptions.value.map((option) => option.id),
+    colorOverrides
+  )
+
+  if (!persisted) {
+    sortableOptions.value = previousOptions
+    toast.add({ title: t('admin.toasts.reorderError'), color: 'error' })
+  }
+
+  isReorderingOptions.value = false
 }
 
 const newOptionLabel = ref('')
@@ -429,11 +538,17 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
 
 <template>
   <div
-    class="border-default bg-default rounded-xl border shadow-sm"
-    :class="vote.open && displayOptions.length > 0 ? 'pb-24 md:pb-0' : ''"
+    class="border-default bg-default relative overflow-hidden rounded-xl border transition-[background-color,border-color,box-shadow,padding] duration-200"
+    :class="[
+      vote.open ? 'border-primary/20 shadow-sm' : 'shadow-sm',
+      vote.open && displayOptions.length > 0 ? 'pb-24 md:pb-0' : '',
+    ]"
   >
     <!-- Header -->
-    <div class="border-default flex flex-wrap items-start justify-between gap-3 border-b px-6 py-4">
+    <div
+      class="border-default relative z-10 flex flex-wrap items-start justify-between gap-3 border-b px-6 py-4 transition-colors duration-200"
+      :class="vote.open ? 'bg-muted/20' : 'bg-transparent'"
+    >
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-3">
           <h3 class="font-semibold">{{ vote.name }}</h3>
@@ -445,30 +560,36 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
         </div>
       </div>
       <div class="flex flex-wrap items-center justify-end gap-2">
-        <UButton
-          icon="i-tabler-arrow-back-up"
-          variant="subtle"
-          color="neutral"
-          size="xs"
-          class="hidden md:inline-flex"
-          :disabled="!canUndo || !vote.open"
-          aria-keyshortcuts="Backspace"
-          @click="triggerUndo"
-        >
-          {{ t('admin.undoLastVoteButton') }}
-        </UButton>
-        <UButton
-          icon="i-tabler-arrow-forward-up"
-          variant="subtle"
-          color="neutral"
-          size="xs"
-          class="hidden md:inline-flex"
-          :disabled="!canRedo || !vote.open"
-          aria-keyshortcuts="Shift+Backspace"
-          @click="triggerRedo"
-        >
-          {{ t('admin.redoLastVoteButton') }}
-        </UButton>
+        <Transition name="vote-controls">
+          <div v-if="vote.open" class="hidden md:inline-flex">
+            <UButton
+              icon="i-tabler-arrow-back-up"
+              variant="subtle"
+              color="neutral"
+              size="xs"
+              :disabled="!canUndo"
+              aria-keyshortcuts="Backspace"
+              @click="triggerUndo"
+            >
+              {{ t('admin.undoLastVoteButton') }}
+            </UButton>
+          </div>
+        </Transition>
+        <Transition name="vote-controls">
+          <div v-if="vote.open" class="hidden md:inline-flex">
+            <UButton
+              icon="i-tabler-arrow-forward-up"
+              variant="subtle"
+              color="neutral"
+              size="xs"
+              :disabled="!canRedo"
+              aria-keyshortcuts="Shift+Backspace"
+              @click="triggerRedo"
+            >
+              {{ t('admin.redoLastVoteButton') }}
+            </UButton>
+          </div>
+        </Transition>
         <UButton
           icon="i-tabler-copy"
           variant="subtle"
@@ -495,6 +616,7 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
           variant="subtle"
           color="success"
           size="sm"
+          class="transition-transform duration-200 active:scale-95"
           :loading="isTogglingOpen"
           :aria-label="t('admin.openVote')"
           @click="toggleOpen"
@@ -505,6 +627,7 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
           variant="subtle"
           color="error"
           size="sm"
+          class="transition-transform duration-200 active:scale-95"
           :loading="isTogglingOpen"
           :aria-label="t('admin.closeVote')"
           @click="toggleOpen"
@@ -521,26 +644,59 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
     </div>
 
     <!-- Options -->
-    <div class="space-y-3 p-6">
-      <AdminVoteOptionRow
-        v-for="(option, index) in displayOptions"
-        :key="option.id"
-        :option="option"
-        :flashing="flashingOptionId === option.id"
-        :index="index"
-        :total="totalVotes"
-        :is-first="index === 0"
-        :is-last="index === displayOptions.length - 1"
-        :locked="vote.open"
-        :active="vote.open"
-        @increment="incrementOption(option.id)"
-        @decrement="decrementOption(option.id)"
-        @delete="pendingDeleteOptionId = option.id"
-        @set-count="(count) => setOptionCount(option.id, count)"
-        @update-color="(color) => updateOptionColor(option.id, color)"
-        @move-up="moveOption(index, index - 1)"
-        @move-down="moveOption(index, index + 1)"
-      />
+    <div class="relative z-10 space-y-3 p-6">
+      <div v-if="vote.open" class="space-y-3">
+        <AdminVoteOptionRow
+          v-for="(option, index) in displayOptions"
+          :key="option.id"
+          :option="option"
+          :flashing="flashingOptionId === option.id"
+          :index="index"
+          :total="totalVotes"
+          :is-first="index === 0"
+          :is-last="index === displayOptions.length - 1"
+          :locked="true"
+          :active="vote.open"
+          @increment="incrementOption(option.id)"
+          @decrement="decrementOption(option.id)"
+          @delete="pendingDeleteOptionId = option.id"
+          @set-count="(count) => setOptionCount(option.id, count)"
+          @update-color="(color) => updateOptionColor(option.id, color)"
+        />
+      </div>
+
+      <div v-else ref="closedOptionsContainerRef" class="space-y-3">
+        <draggable
+          :list="sortableOptions"
+          item-key="id"
+          tag="div"
+          class="space-y-3"
+          handle=".drag-handle"
+          :disabled="isReorderingOptions"
+          drag-class="vote-dragging"
+          ghost-class="vote-drag-ghost"
+          animation="180"
+          @start="onDragStart"
+          @change="onDragChange"
+        >
+          <template #item="{ element: option, index }">
+            <AdminVoteOptionRow
+              :option="option"
+              :flashing="flashingOptionId === option.id"
+              :index="index"
+              :total="totalVotes"
+              :is-first="index === 0"
+              :is-last="index === sortableOptions.length - 1"
+              :locked="isReorderingOptions"
+              :active="vote.open"
+              @delete="pendingDeleteOptionId = option.id"
+              @update-color="(color) => updateOptionColor(option.id, color)"
+              @move-up="moveOption(index, index - 1)"
+              @move-down="moveOption(index, index + 1)"
+            />
+          </template>
+        </draggable>
+      </div>
 
       <div
         v-if="vote.open && activeShortcuts.length > 0"
@@ -565,51 +721,53 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
       </div>
 
       <Teleport to="body">
-        <div v-if="vote.open && displayOptions.length > 0" class="md:hidden">
-          <div
-            class="border-default bg-default/95 fixed inset-x-4 bottom-4 z-40 rounded-2xl border p-3 shadow-lg backdrop-blur"
-          >
-            <div class="flex flex-wrap justify-center gap-2">
-              <button
-                v-for="(option, index) in displayOptions"
-                :key="option.id"
-                type="button"
-                class="focus-visible:outline-primary flex size-14 items-center justify-center rounded-xl text-base font-bold shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2"
-                :style="getMobileOptionButtonStyle(getOptionDisplayColor(option.color, index))"
-                :aria-label="t('admin.incrementOption', { option: option.label })"
-                :aria-keyshortcuts="option.shortcut ?? undefined"
-                :title="option.label"
-                @click="incrementOption(option.id)"
-              >
-                <span aria-hidden="true">{{ option.shortcut ?? '?' }}</span>
-              </button>
-
-              <div class="flex gap-2">
+        <Transition name="vote-float">
+          <div v-if="vote.open && displayOptions.length > 0" class="md:hidden">
+            <div
+              class="border-default bg-default/95 fixed inset-x-4 bottom-4 z-40 rounded-2xl border p-3 shadow-lg backdrop-blur"
+            >
+              <div class="flex flex-wrap justify-center gap-2">
                 <button
+                  v-for="(option, index) in displayOptions"
+                  :key="option.id"
                   type="button"
-                  class="bg-inverted text-inverted focus-visible:outline-primary flex size-14 items-center justify-center rounded-xl shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="!canUndo"
-                  :aria-label="t('admin.undoLastVoteButton')"
-                  :title="t('admin.undoLastVoteButton')"
-                  @click="triggerUndo"
+                  class="focus-visible:outline-primary flex size-14 items-center justify-center rounded-xl text-base font-bold shadow-sm transition-transform duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-95"
+                  :style="getMobileOptionButtonStyle(getOptionDisplayColor(option.color, index))"
+                  :aria-label="t('admin.incrementOption', { option: option.label })"
+                  :aria-keyshortcuts="option.shortcut ?? undefined"
+                  :title="option.label"
+                  @click="incrementOption(option.id)"
                 >
-                  <UIcon name="i-tabler-arrow-back-up" class="size-5" aria-hidden="true" />
+                  <span aria-hidden="true">{{ option.shortcut ?? '?' }}</span>
                 </button>
 
-                <button
-                  type="button"
-                  class="bg-inverted text-inverted focus-visible:outline-primary flex size-14 items-center justify-center rounded-xl shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="!canRedo"
-                  :aria-label="t('admin.redoLastVoteButton')"
-                  :title="t('admin.redoLastVoteButton')"
-                  @click="triggerRedo"
-                >
-                  <UIcon name="i-tabler-arrow-forward-up" class="size-5" aria-hidden="true" />
-                </button>
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    class="bg-inverted text-inverted focus-visible:outline-primary flex size-14 items-center justify-center rounded-xl shadow-sm transition-transform duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="!canUndo"
+                    :aria-label="t('admin.undoLastVoteButton')"
+                    :title="t('admin.undoLastVoteButton')"
+                    @click="triggerUndo"
+                  >
+                    <UIcon name="i-tabler-arrow-back-up" class="size-5" aria-hidden="true" />
+                  </button>
+
+                  <button
+                    type="button"
+                    class="bg-inverted text-inverted focus-visible:outline-primary flex size-14 items-center justify-center rounded-xl shadow-sm transition-transform duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="!canRedo"
+                    :aria-label="t('admin.redoLastVoteButton')"
+                    :title="t('admin.redoLastVoteButton')"
+                    @click="triggerRedo"
+                  >
+                    <UIcon name="i-tabler-arrow-forward-up" class="size-5" aria-hidden="true" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </Transition>
       </Teleport>
 
       <!-- Add option -->

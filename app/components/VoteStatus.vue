@@ -9,14 +9,13 @@ const props = defineProps<{
 
 const status = computed(() => {
   if (props.open) return 'open'
-  if (props.endedAt) return 'closed'
-  return 'pending'
+  return 'closed'
 })
 </script>
 
 <template>
   <UBadge
-    :color="status === 'open' ? 'success' : status === 'closed' ? 'neutral' : 'info'"
+    :color="status === 'open' ? 'success' : 'neutral'"
     :variant="status === 'open' ? 'solid' : 'subtle'"
     class="inline-flex items-center gap-1.5"
   >

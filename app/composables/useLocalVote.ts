@@ -144,6 +144,13 @@ export function useLocalVote() {
     state.value = { ...DEFAULT_STATE, options: [], history: [], redoHistory: [] }
   }
 
+  function reorderOptions(newOrder: LocalVoteOption[]) {
+    state.value.options = newOrder
+    state.value.history = []
+    state.value.redoHistory = []
+    reassignShortcuts(state.value.options)
+  }
+
   function undoLastVote() {
     if (!state.value.open) {
       return null
@@ -211,6 +218,7 @@ export function useLocalVote() {
     updateColor,
     resetCounts,
     clearAll,
+    reorderOptions,
     undoLastVote,
     redoLastVote,
   }

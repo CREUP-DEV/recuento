@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import draggable from 'vuedraggable'
 import { SUGGESTED_OPTION_LABEL_KEYS } from '~~/shared/constants/voteOptions'
 import {
   buildVoteResultsText,
@@ -10,6 +11,7 @@ import {
 const { t } = useI18n()
 const toast = useToast()
 const { copy } = useClipboard()
+const { listContainerRef: closedOptionsContainerRef, animateLayoutChange } = useListFlipAnimation()
 
 useSeoMeta({ title: () => t('localVote.title'), robots: 'noindex' })
 
@@ -26,6 +28,7 @@ const {
   updateColor,
   resetCounts,
   clearAll,
+  reorderOptions,
   undoLastVote,
   redoLastVote,
 } = useLocalVote()
@@ -49,6 +52,7 @@ function confirmName() {
 
 const newOptionLabel = ref('')
 const showResetConfirm = ref(false)
+const pendingDeleteOptionId = ref<string | null>(null)
 
 function addOptionAndReset() {
   if (!newOptionLabel.value.trim()) return
@@ -59,6 +63,33 @@ function addOptionAndReset() {
 function addSuggestedOption(label: string) {
   addOption(label)
   newOptionLabel.value = ''
+}
+
+async function moveOption(fromIndex: number, toIndex: number) {
+  if (toIndex < 0 || toIndex >= state.value.options.length) {
+    return
+  }
+
+  const reordered = [...state.value.options]
+  const [moved] = reordered.splice(fromIndex, 1)
+
+  if (!moved) {
+    return
+  }
+
+  reordered.splice(toIndex, 0, moved)
+
+  await animateLayoutChange(() => {
+    reorderOptions(reordered)
+  })
+}
+
+function onOptionsReorder(event: { moved?: { oldIndex: number; newIndex: number } }) {
+  if (!event.moved) {
+    return
+  }
+
+  reorderOptions([...state.value.options])
 }
 
 function triggerUndo() {
@@ -75,6 +106,27 @@ function triggerRedo() {
   if (optionId) {
     flashOption(optionId)
   }
+}
+
+function toggleVoteOpen() {
+  state.value.open = !state.value.open
+}
+
+const pendingDeleteOption = computed(
+  () => state.value.options.find((option) => option.id === pendingDeleteOptionId.value) ?? null
+)
+
+function confirmDeleteOption(optionId: string) {
+  pendingDeleteOptionId.value = optionId
+}
+
+function executeDeleteOption() {
+  if (!pendingDeleteOptionId.value) {
+    return
+  }
+
+  removeOption(pendingDeleteOptionId.value)
+  pendingDeleteOptionId.value = null
 }
 
 const showClearConfirm = ref(false)
@@ -171,29 +223,55 @@ async function copyResults() {
     </div>
 
     <!-- Options -->
-    <div class="border-default bg-default mb-6 overflow-hidden rounded-2xl border shadow-sm">
-      <div v-if="state.options.length > 0" class="divide-default divide-y">
-        <LocalVoteOptionBar
-          v-for="option in state.options"
-          :key="option.id"
-          :option="option"
-          :total="totalVotes"
-          :active="state.open"
-          :flashing="flashingOptionId === option.id"
-          @increment="incrementOption(option.id)"
-          @decrement="decrementOption(option.id)"
-          @delete="removeOption(option.id)"
-          @set-count="(count) => setCount(option.id, count)"
-          @update-color="(color) => updateColor(option.id, color)"
-        />
+    <div
+      class="border-default bg-default relative mb-6 overflow-hidden rounded-2xl border transition-[background-color,border-color,box-shadow] duration-200"
+      :class="state.open ? 'border-primary/20 shadow-sm' : 'shadow-sm'"
+    >
+      <div
+        v-if="state.options.length > 0"
+        ref="closedOptionsContainerRef"
+        class="relative z-10 p-3 sm:p-4"
+      >
+        <draggable
+          :list="state.options"
+          item-key="id"
+          tag="div"
+          :class="state.open ? 'space-y-2' : 'space-y-3'"
+          handle=".drag-handle"
+          :disabled="state.open"
+          drag-class="vote-dragging"
+          ghost-class="vote-drag-ghost"
+          animation="180"
+          @change="onOptionsReorder"
+        >
+          <template #item="{ element: option, index }">
+            <LocalVoteOptionBar
+              :option="option"
+              :index="index"
+              :total="totalVotes"
+              :is-first="index === 0"
+              :is-last="index === state.options.length - 1"
+              :locked="state.open"
+              :active="state.open"
+              :flashing="flashingOptionId === option.id"
+              @delete="confirmDeleteOption(option.id)"
+              @increment="incrementOption(option.id)"
+              @decrement="decrementOption(option.id)"
+              @set-count="(count) => setCount(option.id, count)"
+              @update-color="(color) => updateColor(option.id, color)"
+              @move-up="moveOption(index, index - 1)"
+              @move-down="moveOption(index, index + 1)"
+            />
+          </template>
+        </draggable>
       </div>
-      <div v-else class="py-12 text-center">
+      <div v-if="state.options.length === 0" class="relative z-10 py-12 text-center">
         <UIcon name="i-tabler-chart-bar-off" class="text-muted mx-auto size-10" />
         <p class="text-muted mt-3 text-sm">{{ t('localVote.empty') }}</p>
       </div>
 
       <!-- Add option -->
-      <div v-if="!state.open" class="border-default border-t p-4">
+      <div v-if="!state.open" class="border-default relative z-10 border-t p-4">
         <div class="flex gap-2">
           <UInput
             v-model="newOptionLabel"
@@ -235,34 +313,41 @@ async function copyResults() {
         :icon="state.open ? 'i-tabler-player-stop' : 'i-tabler-player-play'"
         :color="state.open ? 'error' : 'success'"
         variant="subtle"
-        @click="state.open = !state.open"
+        class="transition-transform duration-200 active:scale-95"
+        @click="toggleVoteOpen"
       >
         {{ state.open ? t('localVote.close') : t('localVote.open') }}
       </UButton>
 
-      <UButton
-        icon="i-tabler-arrow-back-up"
-        variant="subtle"
-        color="neutral"
-        class="hidden md:inline-flex"
-        :disabled="!canUndo"
-        aria-keyshortcuts="Backspace"
-        @click="triggerUndo"
-      >
-        {{ t('localVote.undoLastVote') }}
-      </UButton>
+      <Transition name="vote-controls">
+        <div v-if="state.open" class="hidden md:inline-flex">
+          <UButton
+            icon="i-tabler-arrow-back-up"
+            variant="subtle"
+            color="neutral"
+            :disabled="!canUndo"
+            aria-keyshortcuts="Backspace"
+            @click="triggerUndo"
+          >
+            {{ t('localVote.undoLastVote') }}
+          </UButton>
+        </div>
+      </Transition>
 
-      <UButton
-        icon="i-tabler-arrow-forward-up"
-        variant="subtle"
-        color="neutral"
-        class="hidden md:inline-flex"
-        :disabled="!canRedo"
-        aria-keyshortcuts="Shift+Backspace"
-        @click="triggerRedo"
-      >
-        {{ t('localVote.redoLastVote') }}
-      </UButton>
+      <Transition name="vote-controls">
+        <div v-if="state.open" class="hidden md:inline-flex">
+          <UButton
+            icon="i-tabler-arrow-forward-up"
+            variant="subtle"
+            color="neutral"
+            :disabled="!canRedo"
+            aria-keyshortcuts="Shift+Backspace"
+            @click="triggerRedo"
+          >
+            {{ t('localVote.redoLastVote') }}
+          </UButton>
+        </div>
+      </Transition>
 
       <UButton
         icon="i-tabler-rotate"
@@ -318,51 +403,53 @@ async function copyResults() {
     </div>
 
     <Teleport to="body">
-      <div v-if="state.open && state.options.length > 0" class="md:hidden">
-        <div
-          class="border-default bg-default/95 fixed inset-x-4 bottom-4 z-40 rounded-2xl border p-3 shadow-lg backdrop-blur"
-        >
-          <div class="flex flex-wrap justify-center gap-2">
-            <button
-              v-for="(option, index) in state.options"
-              :key="option.id"
-              type="button"
-              class="focus-visible:outline-primary flex size-[3.5rem] items-center justify-center rounded-xl text-base font-bold shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2"
-              :style="getMobileOptionButtonStyle(getOptionDisplayColor(option.color, index))"
-              :aria-label="t('localVote.incrementOption', { option: option.label })"
-              :aria-keyshortcuts="option.shortcut ?? undefined"
-              :title="option.label"
-              @click="incrementOption(option.id)"
-            >
-              <span aria-hidden="true">{{ option.shortcut ?? '?' }}</span>
-            </button>
-
-            <div class="flex gap-2">
+      <Transition name="vote-float">
+        <div v-if="state.open && state.options.length > 0" class="md:hidden">
+          <div
+            class="border-default bg-default/95 fixed inset-x-4 bottom-4 z-40 rounded-2xl border p-3 shadow-lg backdrop-blur"
+          >
+            <div class="flex flex-wrap justify-center gap-2">
               <button
+                v-for="(option, index) in state.options"
+                :key="option.id"
                 type="button"
-                class="bg-inverted text-inverted focus-visible:outline-primary flex size-[3.5rem] items-center justify-center rounded-xl shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="!canUndo"
-                :aria-label="t('localVote.undoLastVote')"
-                :title="t('localVote.undoLastVote')"
-                @click="triggerUndo"
+                class="focus-visible:outline-primary flex size-14 items-center justify-center rounded-xl text-base font-bold shadow-sm transition-transform duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-95"
+                :style="getMobileOptionButtonStyle(getOptionDisplayColor(option.color, index))"
+                :aria-label="t('localVote.incrementOption', { option: option.label })"
+                :aria-keyshortcuts="option.shortcut ?? undefined"
+                :title="option.label"
+                @click="incrementOption(option.id)"
               >
-                <UIcon name="i-tabler-arrow-back-up" class="size-5" aria-hidden="true" />
+                <span aria-hidden="true">{{ option.shortcut ?? '?' }}</span>
               </button>
 
-              <button
-                type="button"
-                class="bg-inverted text-inverted focus-visible:outline-primary flex size-[3.5rem] items-center justify-center rounded-xl shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="!canRedo"
-                :aria-label="t('localVote.redoLastVote')"
-                :title="t('localVote.redoLastVote')"
-                @click="triggerRedo"
-              >
-                <UIcon name="i-tabler-arrow-forward-up" class="size-5" aria-hidden="true" />
-              </button>
+              <div class="flex gap-2">
+                <button
+                  type="button"
+                  class="bg-inverted text-inverted focus-visible:outline-primary flex size-14 items-center justify-center rounded-xl shadow-sm transition-transform duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="!canUndo"
+                  :aria-label="t('localVote.undoLastVote')"
+                  :title="t('localVote.undoLastVote')"
+                  @click="triggerUndo"
+                >
+                  <UIcon name="i-tabler-arrow-back-up" class="size-5" aria-hidden="true" />
+                </button>
+
+                <button
+                  type="button"
+                  class="bg-inverted text-inverted focus-visible:outline-primary flex size-14 items-center justify-center rounded-xl shadow-sm transition-transform duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="!canRedo"
+                  :aria-label="t('localVote.redoLastVote')"
+                  :title="t('localVote.redoLastVote')"
+                  @click="triggerRedo"
+                >
+                  <UIcon name="i-tabler-arrow-forward-up" class="size-5" aria-hidden="true" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </Transition>
     </Teleport>
 
     <UModal v-model:open="showResetConfirm">
@@ -384,6 +471,25 @@ async function copyResults() {
               "
             >
               {{ t('localVote.resetCounts') }}
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal :open="pendingDeleteOptionId !== null" @update:open="pendingDeleteOptionId = null">
+      <template #content>
+        <div class="p-6">
+          <h3 class="text-lg font-semibold">{{ t('localVote.deleteOption') }}</h3>
+          <p class="text-muted mt-2">
+            {{ t('localVote.deleteOptionMessage', { name: pendingDeleteOption?.label ?? '' }) }}
+          </p>
+          <div class="mt-6 flex justify-end gap-3">
+            <UButton variant="ghost" color="neutral" @click="pendingDeleteOptionId = null">
+              {{ t('admin.cancel') }}
+            </UButton>
+            <UButton color="error" @click="executeDeleteOption">
+              {{ t('admin.delete') }}
             </UButton>
           </div>
         </div>

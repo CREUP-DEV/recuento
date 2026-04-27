@@ -37,8 +37,10 @@ const defaultColor = computed(
 )
 
 const colorInput = ref<HTMLInputElement | null>(null)
+const countInputElement = ref<HTMLInputElement | null>(null)
 
 function openColorPicker() {
+  colorInput.value?.showPicker?.()
   colorInput.value?.click()
 }
 
@@ -48,6 +50,11 @@ function onColorChange(e: Event) {
 
 const countInput = ref(String(props.option.count))
 const isEditingCount = ref(false)
+
+const canShowReorderControls = computed(() => !(props.isFirst && props.isLast))
+const canShowVoteControls = computed(() => Boolean(props.active))
+const canShowDelete = computed(() => !props.active)
+const canShowColorControls = computed(() => !props.active)
 
 watch(
   () => props.option.count,
@@ -59,63 +66,113 @@ watch(
 function confirmSetCount() {
   const val = parseInt(countInput.value, 10)
   if (!Number.isNaN(val) && val >= 0) emit('setCount', val)
+  countInput.value = String(Number.isNaN(val) || val < 0 ? props.option.count : val)
   isEditingCount.value = false
 }
+
+function startEditingCount() {
+  if (!props.active) {
+    return
+  }
+
+  isEditingCount.value = true
+}
+
+function cancelCountEdit() {
+  countInput.value = String(props.option.count)
+  isEditingCount.value = false
+}
+
+watch(isEditingCount, async (editing) => {
+  if (!editing) {
+    return
+  }
+
+  await nextTick()
+  countInputElement.value?.focus()
+  countInputElement.value?.select()
+})
 </script>
 
 <template>
   <div
-    class="border-default space-y-2 rounded-lg border p-3 transition"
-    :class="flashing ? 'bg-primary/10' : 'hover:bg-muted/50'"
+    :data-option-id="option.id"
+    class="group space-y-1.5 border border-transparent transition-[padding,border-radius,box-shadow,background-color,border-color] duration-220 ease-out"
+    :class="[
+      active
+        ? 'bg-default rounded-xl p-3 shadow-sm'
+        : 'bg-default hover:bg-muted/20 rounded-2xl p-4 shadow-sm',
+      flashing ? 'bg-primary/10 ring-primary/20 ring-1' : '',
+    ]"
   >
-    <div class="flex items-center gap-3">
-      <div class="flex flex-col gap-0.5">
-        <UButton
-          icon="i-tabler-chevron-up"
-          variant="ghost"
-          color="neutral"
-          size="xs"
-          :disabled="isFirst || locked"
-          :aria-label="t('admin.moveOptionUp')"
-          :ui="{ base: 'p-0.5' }"
-          @click="emit('moveUp')"
-        />
-        <UButton
-          icon="i-tabler-chevron-down"
-          variant="ghost"
-          color="neutral"
-          size="xs"
-          :disabled="isLast || locked"
-          :aria-label="t('admin.moveOptionDown')"
-          :ui="{ base: 'p-0.5' }"
-          @click="emit('moveDown')"
-        />
-      </div>
-
-      <div class="flex shrink-0 items-center gap-1">
-        <div class="relative shrink-0">
-          <button
-            type="button"
-            class="size-5 rounded ring-1 ring-transparent transition hover:ring-2 hover:ring-offset-1 focus:outline-none focus-visible:ring-2"
-            :style="{
-              backgroundColor: option.color ?? defaultColor,
-              '--tw-ring-color': option.color ?? defaultColor,
-            }"
+    <div class="flex items-center gap-2">
+      <div v-if="canShowReorderControls" class="flex shrink-0 items-center gap-1.5">
+        <div class="flex min-h-18 flex-col justify-center gap-1">
+          <UButton
+            v-if="!isFirst"
+            icon="i-tabler-chevron-up"
+            variant="ghost"
+            color="neutral"
+            size="sm"
             :disabled="locked"
-            :aria-label="t('admin.changeColor')"
-            :title="t('admin.changeColor')"
-            @click="openColorPicker"
+            :aria-label="t('admin.moveOptionUp')"
+            :ui="{ base: 'p-1.5' }"
+            @click="emit('moveUp')"
           />
-          <input
-            ref="colorInput"
-            type="color"
-            class="sr-only"
-            aria-hidden="true"
-            tabindex="-1"
-            :value="option.color ?? defaultColor"
-            @change="onColorChange"
+          <UButton
+            v-if="!isLast"
+            icon="i-tabler-chevron-down"
+            variant="ghost"
+            color="neutral"
+            size="sm"
+            :disabled="locked"
+            :aria-label="t('admin.moveOptionDown')"
+            :ui="{ base: 'p-1.5' }"
+            @click="emit('moveDown')"
           />
         </div>
+
+        <span
+          class="drag-handle text-muted-foreground flex cursor-grab touch-none items-center rounded p-1.5 active:cursor-grabbing"
+          :title="t('admin.reorderOption')"
+        >
+          <UIcon name="i-tabler-grip-vertical" class="size-4" aria-hidden="true" />
+          <span class="sr-only">{{ t('admin.reorderOption') }}</span>
+        </span>
+      </div>
+
+      <div class="flex shrink-0 items-center gap-2 self-center">
+        <button
+          v-if="canShowColorControls"
+          type="button"
+          class="relative inline-flex size-4 shrink-0 cursor-pointer items-center justify-center self-center rounded-full ring-1 ring-transparent transition focus-within:ring-2 hover:ring-2 hover:ring-offset-1"
+          :style="{ '--tw-ring-color': option.color ?? defaultColor }"
+          :aria-label="t('admin.changeColor')"
+          :title="t('admin.changeColor')"
+          @click.stop="openColorPicker"
+        >
+          <span
+            class="block size-4 rounded-full ring-1 ring-black/5"
+            :style="{ backgroundColor: option.color ?? defaultColor }"
+            aria-hidden="true"
+          />
+        </button>
+        <input
+          v-if="canShowColorControls"
+          ref="colorInput"
+          type="color"
+          class="sr-only"
+          aria-hidden="true"
+          tabindex="-1"
+          :value="option.color ?? defaultColor"
+          @change.stop="onColorChange"
+        />
+        <span
+          v-else
+          class="block size-4 shrink-0 self-center rounded-full ring-1 ring-black/5"
+          :style="{ backgroundColor: option.color ?? defaultColor }"
+          aria-hidden="true"
+        />
 
         <span
           v-if="option.shortcut"
@@ -126,7 +183,7 @@ function confirmSetCount() {
       </div>
 
       <UButton
-        v-if="option.color && option.color !== defaultColor"
+        v-if="canShowColorControls && option.color && option.color !== defaultColor"
         icon="i-tabler-refresh"
         variant="ghost"
         color="neutral"
@@ -134,65 +191,79 @@ function confirmSetCount() {
         :aria-label="t('admin.resetOptionColor')"
         :title="t('admin.resetOptionColor')"
         :disabled="locked"
-        @click="emit('updateColor', null)"
+        @click.stop="emit('updateColor', null)"
       />
 
       <span class="flex-1 text-left text-sm font-medium">{{ option.label }}</span>
 
-      <div class="flex items-center gap-1">
-        <UButton
-          icon="i-tabler-minus"
-          variant="ghost"
-          color="neutral"
-          size="xs"
-          :disabled="!active || option.count <= 0"
-          :aria-label="t('admin.decrementVote')"
-          @click="emit('decrement')"
-        />
-        <button
-          v-if="!isEditingCount"
-          type="button"
-          class="min-w-8 cursor-pointer bg-transparent text-center font-mono text-sm font-bold tabular-nums"
-          :aria-label="t('admin.editCount')"
-          :title="t('admin.editCount')"
-          :disabled="!active"
-          @click="isEditingCount = true"
+      <Transition name="vote-controls" mode="out-in">
+        <div v-if="canShowVoteControls" key="vote-controls" class="flex items-center gap-1">
+          <UButton
+            icon="i-tabler-minus"
+            variant="ghost"
+            color="neutral"
+            size="sm"
+            :disabled="option.count <= 0"
+            :aria-label="t('admin.decrementVote')"
+            :ui="{ base: 'transition-transform duration-150 active:scale-90' }"
+            @click="emit('decrement')"
+          />
+          <button
+            v-if="!isEditingCount"
+            type="button"
+            class="inline-flex h-9 w-11 items-center justify-center rounded-md bg-transparent font-mono text-sm font-bold tabular-nums transition-colors hover:bg-black/5"
+            :aria-label="t('admin.editCount')"
+            :title="t('admin.editCount')"
+            @click="startEditingCount"
+          >
+            {{ option.count }}
+          </button>
+          <input
+            v-else
+            ref="countInputElement"
+            v-model="countInput"
+            class="border-default bg-default text-default focus:border-primary/40 focus:ring-primary/10 h-9 w-11 rounded-md border text-center font-mono text-sm font-bold tabular-nums outline-none focus:ring-2"
+            type="number"
+            min="0"
+            inputmode="numeric"
+            @blur="confirmSetCount"
+            @keydown.enter.prevent="confirmSetCount"
+            @keydown.escape.prevent="cancelCountEdit"
+          />
+          <UButton
+            icon="i-tabler-plus"
+            variant="solid"
+            color="primary"
+            size="sm"
+            :aria-label="t('admin.incrementOption', { option: option.label })"
+            :aria-keyshortcuts="option.shortcut ?? undefined"
+            :ui="{ base: 'transition-transform duration-150 active:scale-90' }"
+            @click="emit('increment')"
+          />
+        </div>
+        <div
+          v-else
+          key="count-display"
+          class="bg-muted/70 min-w-12 rounded-full px-3 py-1 text-center font-mono text-sm font-bold tabular-nums"
         >
           {{ option.count }}
-        </button>
-        <UInput
-          v-else
-          v-model="countInput"
-          size="xs"
-          class="w-16 text-center font-mono"
-          type="number"
-          min="0"
-          :disabled="!active"
-          @blur="confirmSetCount"
-          @keydown.enter.prevent="confirmSetCount"
-          @keydown.escape.prevent="isEditingCount = false"
-        />
-        <UButton
-          icon="i-tabler-plus"
-          variant="ghost"
-          color="neutral"
-          size="xs"
-          :disabled="!active"
-          :aria-label="t('admin.incrementOption', { option: option.label })"
-          :aria-keyshortcuts="option.shortcut ?? undefined"
-          @click="emit('increment')"
-        />
-      </div>
+        </div>
+      </Transition>
 
-      <UButton
-        icon="i-tabler-trash"
-        variant="ghost"
-        color="error"
-        size="xs"
-        :disabled="locked"
-        :aria-label="t('admin.deleteOption')"
-        @click="emit('delete')"
-      />
+      <Transition name="vote-controls">
+        <div v-if="canShowDelete" class="flex">
+          <UButton
+            icon="i-tabler-trash"
+            variant="ghost"
+            color="error"
+            size="sm"
+            :disabled="locked"
+            :aria-label="t('admin.deleteOption')"
+            :ui="{ base: 'transition-transform duration-150 active:scale-90' }"
+            @click="emit('delete')"
+          />
+        </div>
+      </Transition>
     </div>
 
     <VoteBar :count="option.count" :total="total" :color="option.color ?? defaultColor" />

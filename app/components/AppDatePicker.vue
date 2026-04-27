@@ -14,6 +14,8 @@ const emit = defineEmits<{
 }>()
 
 const isOpen = ref(false)
+type CalendarRangeValue = { start?: DateValue; end?: DateValue }
+type CalendarValue = DateValue | CalendarRangeValue | DateValue[] | null | undefined
 
 const calendarValue = computed(() => {
   if (!props.modelValue) return undefined
@@ -36,7 +38,19 @@ function formatDisplay(dateStr: string): string {
   }
 }
 
-function onSelect(val: DateValue) {
+function isSingleDateValue(value: CalendarValue): value is DateValue {
+  if (value == null || Array.isArray(value)) {
+    return false
+  }
+
+  return !('start' in value)
+}
+
+function onSelect(val: CalendarValue) {
+  if (!isSingleDateValue(val)) {
+    return
+  }
+
   emit('update:modelValue', val.toString())
   isOpen.value = false
 }

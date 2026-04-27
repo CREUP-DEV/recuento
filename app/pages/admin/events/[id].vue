@@ -146,8 +146,33 @@ function patchOption(voteId: string, optionId: string, fields: Partial<AdminEven
 
 onMounted(() => {
   if (import.meta.server) return
+
   const sse = new EventSource('/api/sse/votes')
+
   sse.addEventListener('vote-status-change', () => refresh())
+  sse.addEventListener('vote-count-update', (rawEvent) => {
+    try {
+      const payload = JSON.parse((rawEvent as MessageEvent<string>).data) as {
+        voteId?: string
+        options?: AdminEventVoteOption[]
+      }
+
+      if (!payload.voteId || !Array.isArray(payload.options) || !eventData.value?.data) {
+        return
+      }
+
+      const vote = eventData.value.data.votes.find((entry) => entry.id === payload.voteId)
+
+      if (!vote) {
+        return
+      }
+
+      vote.options = payload.options.map((option) => ({ ...option, shortcut: null }))
+    } catch {
+      // Ignore malformed SSE payloads
+    }
+  })
+
   onBeforeUnmount(() => sse.close())
 })
 </script>

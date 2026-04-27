@@ -72,7 +72,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, message: 'Opción no encontrada' })
   }
 
-  if (data.count !== undefined) {
+  if (
+    data.count !== undefined ||
+    data.color !== undefined ||
+    data.label !== undefined ||
+    data.shortcut !== undefined
+  ) {
     await emitVoteCountUpdate(voteId)
   }
 

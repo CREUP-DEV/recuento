@@ -25,11 +25,12 @@ load_env_file() {
 
 build_and_push_image() {
   local latest_image="${IMAGE_NAME}:latest"
+  local build_site_url="${NUXT_DEPLOY_SITE_URL:-$NUXT_SITE_URL}"
 
   if docker buildx version >/dev/null 2>&1; then
     docker buildx build \
       --platform "$DOCKER_PLATFORM" \
-      --build-arg "NUXT_SITE_URL=$NUXT_SITE_URL" \
+      --build-arg "NUXT_SITE_URL=$build_site_url" \
       --build-arg "NUXT_UMAMI_HOST=${NUXT_UMAMI_HOST:-}" \
       --build-arg "NUXT_UMAMI_ID=${NUXT_UMAMI_ID:-}" \
       --build-arg "NUXT_UMAMI_TAG=${NUXT_UMAMI_TAG:-}" \
@@ -42,7 +43,7 @@ build_and_push_image() {
 
   docker build \
     --platform "$DOCKER_PLATFORM" \
-    --build-arg "NUXT_SITE_URL=$NUXT_SITE_URL" \
+    --build-arg "NUXT_SITE_URL=$build_site_url" \
     --build-arg "NUXT_UMAMI_HOST=${NUXT_UMAMI_HOST:-}" \
     --build-arg "NUXT_UMAMI_ID=${NUXT_UMAMI_ID:-}" \
     --build-arg "NUXT_UMAMI_TAG=${NUXT_UMAMI_TAG:-}" \

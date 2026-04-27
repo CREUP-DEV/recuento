@@ -101,8 +101,6 @@ async function toggleVisibility(ev: { id: string; visible: boolean }) {
             :color="ev.visible ? 'success' : 'neutral'"
             variant="subtle"
             size="xs"
-            :icon="ev.visible ? 'i-tabler-eye' : 'i-tabler-eye-off'"
-            :class="ev.visible ? 'text-green-700! dark:text-green-300!' : ''"
             :aria-pressed="ev.visible"
             @click="toggleVisibility(ev)"
           >

@@ -46,16 +46,19 @@ Requisitos:
 
 La mayor parte de la configuración es runtime, pero `NUXT_SITE_URL` y la configuración de Umami también se leen durante el build de Nuxt. Si despliegas con `deploy.sh`, esas variables deben existir en la máquina local desde la que construyes la imagen.
 
+En desarrollo local, `NUXT_SITE_URL` puede quedarse en `http://localhost:3000`. Si la imagen de producción necesita compilarse con otro origen público, define `NUXT_DEPLOY_SITE_URL`; `deploy.sh` usará esa variable solo para el build y mantendrá `NUXT_SITE_URL` como configuración runtime.
+
 Mínimas:
 
-| Variable               | Descripción                                    |
-| ---------------------- | ---------------------------------------------- |
-| `NUXT_SITE_URL`        | Origen del sitio (ej. `http://localhost:3000`) |
-| `APP_SECRET`           | Secreto para sesiones de Better Auth           |
-| `ADMIN_EMAILS`         | Emails de administradores separados por coma   |
-| `GOOGLE_CLIENT_ID`     | ID de cliente OAuth de Google                  |
-| `GOOGLE_CLIENT_SECRET` | Secreto de cliente OAuth de Google             |
-| `DATABASE_URL`         | URL de conexión a PostgreSQL                   |
+| Variable               | Descripción                                            |
+| ---------------------- | ------------------------------------------------------ |
+| `NUXT_SITE_URL`        | Origen del sitio (ej. `http://localhost:3000`)         |
+| `NUXT_DEPLOY_SITE_URL` | Origen público opcional usado por `deploy.sh` al build |
+| `APP_SECRET`           | Secreto para sesiones de Better Auth                   |
+| `ADMIN_EMAILS`         | Emails de administradores separados por coma           |
+| `GOOGLE_CLIENT_ID`     | ID de cliente OAuth de Google                          |
+| `GOOGLE_CLIENT_SECRET` | Secreto de cliente OAuth de Google                     |
+| `DATABASE_URL`         | URL de conexión a PostgreSQL                           |
 
 Opcionales:
 
@@ -102,7 +105,7 @@ El despliegue recomendado es:
 bash ./deploy.sh
 ```
 
-Si usas Umami, asegúrate de que `NUXT_UMAMI_HOST` y `NUXT_UMAMI_ID` estén definidos en el entorno local antes de ejecutar `deploy.sh`; ponerlos solo en el `.env` del VPS no reconfigura una imagen ya construida.
+Si usas Umami, asegúrate de que `NUXT_UMAMI_HOST` y `NUXT_UMAMI_ID` estén definidos en el entorno local antes de ejecutar `deploy.sh`; ponerlos solo en el `.env` del VPS no reconfigura una imagen ya construida. Lo mismo aplica a `NUXT_DEPLOY_SITE_URL` si el build debe salir con un origen distinto al `localhost` usado en desarrollo.
 
 Archivos clave:
 
