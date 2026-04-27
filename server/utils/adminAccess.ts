@@ -18,7 +18,7 @@ export function getEnvAdminEmails() {
         level: 'error',
         scope: 'adminAccess',
         message:
-          'ADMIN_EMAILS env var is not set — no users can authenticate. Set ADMIN_EMAILS=user@example.com in .env and restart.',
+          'ADMIN_EMAILS env var is not set, no users can authenticate. Set ADMIN_EMAILS=user@example.com in .env and restart.',
       })
     )
     cachedEnvAdminEmails = []

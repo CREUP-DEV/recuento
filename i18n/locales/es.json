@@ -9,7 +9,8 @@
     "live": "En directo",
     "home": "Inicio",
     "admin": "Administración",
-    "viewPublicSite": "Ver sitio público"
+    "viewPublicSite": "Ver sitio público",
+    "login": "Acceder"
   },
   "events": {
     "title": "Eventos",
@@ -150,6 +151,7 @@
     "setCount": "Establecer recuento",
     "increment": "+1",
     "decrement": "-1",
+    "selectDate": "Seleccionar fecha",
     "totalEvents": "Total de eventos",
     "activeEvents": "Eventos activos",
     "openVotes": "Votaciones abiertas",

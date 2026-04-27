@@ -85,7 +85,7 @@ export default defineNuxtConfig({
         ],
         'style-src': ["'self'", "'unsafe-inline'"],
         'style-src-attr': ["'unsafe-inline'"],
-        'img-src': ["'self'", 'data:', 'blob:'],
+        'img-src': ["'self'", 'data:', 'blob:', 'https://lh3.googleusercontent.com'],
         'font-src': ["'self'", 'data:'],
         'connect-src': [
           "'self'",
@@ -165,6 +165,12 @@ export default defineNuxtConfig({
       headers: {
         'X-Robots-Tag': 'noindex, nofollow, noarchive',
       },
+    },
+    '/local': {
+      headers: {
+        'X-Robots-Tag': 'noindex, nofollow, noarchive',
+      },
+      ssr: false,
     },
     '/api/**': {
       headers: {

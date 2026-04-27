@@ -130,6 +130,8 @@ async function addVote() {
 
 <template>
   <div v-if="ev" class="animate-fade-slide-up space-y-8">
+    <h1 class="text-2xl font-bold">{{ ev.name }}</h1>
+
     <!-- Event details card -->
     <div class="border-default bg-default rounded-xl border p-6 shadow-sm">
       <h2 class="mb-4 text-lg font-semibold">{{ t('admin.eventDetails') }}</h2>
@@ -153,6 +155,8 @@ async function addVote() {
           type="file"
           accept="image/*"
           class="hidden"
+          aria-hidden="true"
+          tabindex="-1"
           @change="uploadBanner"
         />
         <UButton
@@ -172,10 +176,10 @@ async function addVote() {
         </UFormField>
         <div class="grid gap-4 sm:grid-cols-2">
           <UFormField :label="t('events.startDate')">
-            <UInput v-model="editForm.startDate" type="date" size="lg" />
+            <AppDatePicker v-model="editForm.startDate" size="lg" />
           </UFormField>
           <UFormField :label="t('events.endDate')">
-            <UInput v-model="editForm.endDate" type="date" size="lg" />
+            <AppDatePicker v-model="editForm.endDate" size="lg" />
           </UFormField>
         </div>
         <div class="flex justify-end">
@@ -195,6 +199,7 @@ async function addVote() {
         <UInput
           v-model="newVoteName"
           :placeholder="t('admin.voteNamePlaceholder')"
+          :aria-label="t('admin.voteNamePlaceholder')"
           class="flex-1"
           @keydown.enter.prevent="addVote"
         />

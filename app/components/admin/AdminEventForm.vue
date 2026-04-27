@@ -35,19 +35,17 @@ function update(field: keyof typeof props.modelValue, value: string) {
 
     <div class="grid gap-4 sm:grid-cols-2">
       <UFormField :label="t('events.startDate')">
-        <UInput
-          :value="modelValue.startDate"
-          type="date"
+        <AppDatePicker
+          :model-value="modelValue.startDate"
           size="lg"
-          @input="update('startDate', ($event.target as HTMLInputElement).value)"
+          @update:model-value="update('startDate', $event)"
         />
       </UFormField>
       <UFormField :label="t('events.endDate')">
-        <UInput
-          :value="modelValue.endDate"
-          type="date"
+        <AppDatePicker
+          :model-value="modelValue.endDate"
           size="lg"
-          @input="update('endDate', ($event.target as HTMLInputElement).value)"
+          @update:model-value="update('endDate', $event)"
         />
       </UFormField>
     </div>

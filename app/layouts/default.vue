@@ -9,9 +9,9 @@ const { t } = useI18n()
 
     <AppHeader />
 
-    <main id="main-content" tabindex="-1" class="flex-1">
+    <UMain id="main-content" tabindex="-1" class="flex-1">
       <slot />
-    </main>
+    </UMain>
 
     <BackToLiveButton />
 

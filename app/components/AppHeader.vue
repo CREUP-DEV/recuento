@@ -3,6 +3,7 @@ const { t, locale } = useI18n()
 const { setLocale } = useI18n()
 const localePath = useLocalePath()
 const { activeVote } = useActiveVote()
+const { session } = useAuth()
 
 const defaultLocaleItem = { code: 'es', flag: 'i-circle-flags-es', name: 'Español' } as const
 
@@ -52,6 +53,7 @@ async function switchLocale(code: 'es' | 'en') {
       <div class="flex-1" />
 
       <UDropdownMenu
+        :modal="false"
         :items="
           localeItems.map((l) => ({
             label: l.name,
@@ -71,6 +73,29 @@ async function switchLocale(code: 'es' | 'en') {
       </UDropdownMenu>
 
       <UColorModeButton />
+
+      <template v-if="!session.isPending">
+        <UTooltip v-if="session.data" :text="t('nav.admin')">
+          <UButton
+            :to="localePath('/admin')"
+            variant="ghost"
+            color="neutral"
+            size="sm"
+            icon="i-tabler-layout-dashboard"
+            :aria-label="t('nav.admin')"
+          />
+        </UTooltip>
+        <UTooltip v-else :text="t('nav.login')">
+          <UButton
+            :to="localePath('/admin/login')"
+            variant="ghost"
+            color="neutral"
+            size="sm"
+            icon="i-tabler-login"
+            :aria-label="t('nav.login')"
+          />
+        </UTooltip>
+      </template>
     </div>
   </header>
 </template>

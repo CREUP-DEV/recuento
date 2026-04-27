@@ -40,8 +40,13 @@ async function toggleVisibility(ev: { id: string; visible: boolean }) {
       body: { visible: !ev.visible },
     })
     await refresh()
-  } catch {
-    toast.add({ title: t('admin.toasts.visibilityError'), color: 'error' })
+  } catch (error: unknown) {
+    const apiMessage = (error as { data?: { message?: string } })?.data?.message
+    toast.add({
+      title: t('admin.toasts.visibilityError'),
+      description: apiMessage,
+      color: 'error',
+    })
   }
 }
 </script>
@@ -62,17 +67,17 @@ async function toggleVisibility(ev: { id: string; visible: boolean }) {
         class="border-default bg-default flex items-center gap-4 rounded-xl border p-4 shadow-sm transition hover:shadow"
       >
         <!-- Banner thumbnail -->
-        <div class="bg-muted size-16 shrink-0 overflow-hidden rounded-lg">
+        <div class="bg-muted aspect-video w-28 shrink-0 overflow-hidden rounded-lg">
           <NuxtImg
             v-if="ev.banner"
             :src="ev.banner"
             :alt="ev.name"
             class="size-full object-cover"
-            width="64"
-            height="64"
+            width="112"
+            height="63"
           />
           <div v-else class="flex size-full items-center justify-center">
-            <UIcon name="i-tabler-photo" class="text-muted size-6" />
+            <UIcon name="i-tabler-photo" class="text-muted size-5" />
           </div>
         </div>
 
@@ -84,8 +89,8 @@ async function toggleVisibility(ev: { id: string; visible: boolean }) {
           >
             {{ ev.name }}
           </NuxtLink>
-          <p class="text-muted text-sm">
-            {{ formatDateShort(ev.startDate) }} — {{ formatDateShort(ev.endDate) }} ·
+          <p class="text-sm text-neutral-600 dark:text-neutral-400">
+            {{ formatDateShort(ev.startDate) }} - {{ formatDateShort(ev.endDate) }} ·
             {{ $t('events.votesCount', { count: ev.votes?.length ?? 0 }, ev.votes?.length ?? 0) }}
           </p>
         </div>
@@ -96,6 +101,8 @@ async function toggleVisibility(ev: { id: string; visible: boolean }) {
             :color="ev.visible ? 'success' : 'neutral'"
             variant="subtle"
             size="xs"
+            :icon="ev.visible ? 'i-tabler-eye' : 'i-tabler-eye-off'"
+            :class="ev.visible ? 'text-green-700! dark:text-green-300!' : ''"
             :aria-pressed="ev.visible"
             @click="toggleVisibility(ev)"
           >

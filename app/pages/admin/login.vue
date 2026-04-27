@@ -65,7 +65,7 @@ const handleLogin = async () => {
 </script>
 
 <template>
-  <div
+  <main
     class="from-creup-beige-50 via-background to-creup-red-50/40 dark:from-creup-dark-gray-950 dark:via-background dark:to-creup-red-950/20 flex min-h-screen items-center justify-center bg-linear-to-br p-4"
   >
     <div class="animate-fade-slide-up w-full max-w-md">
@@ -116,5 +116,5 @@ const handleLogin = async () => {
         </div>
       </div>
     </div>
-  </div>
+  </main>
 </template>

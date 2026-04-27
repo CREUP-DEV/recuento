@@ -60,10 +60,10 @@ async function submit() {
 
       <div class="grid gap-4 sm:grid-cols-2">
         <UFormField :label="t('events.startDate')">
-          <UInput v-model="form.startDate" type="date" size="lg" />
+          <AppDatePicker v-model="form.startDate" size="lg" />
         </UFormField>
         <UFormField :label="t('events.endDate')">
-          <UInput v-model="form.endDate" type="date" size="lg" />
+          <AppDatePicker v-model="form.endDate" size="lg" />
         </UFormField>
       </div>
 

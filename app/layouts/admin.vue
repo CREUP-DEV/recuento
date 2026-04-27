@@ -256,7 +256,7 @@ useHead({
       </USidebar>
 
       <div
-        class="bg-default flex min-w-0 flex-1 flex-col overflow-hidden transition-[width] duration-300 ease-in-out"
+        class="bg-default flex min-w-0 flex-1 flex-col overflow-hidden text-gray-900 transition-[width] duration-300 ease-in-out dark:text-gray-100"
       >
         <header
           class="border-default flex h-(--ui-header-height) shrink-0 items-center gap-3 border-b px-4"
@@ -286,6 +286,7 @@ useHead({
           </Transition>
           <div class="flex-1" />
           <UDropdownMenu
+            :modal="false"
             :items="
               localeItems.map((item) => ({
                 label: item.name,

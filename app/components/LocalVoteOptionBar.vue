@@ -65,6 +65,8 @@ function confirmCount() {
           ref="colorInput"
           type="color"
           class="sr-only"
+          aria-hidden="true"
+          tabindex="-1"
           :value="option.color ?? '#93c5fd'"
           @change="onColorChange"
         />
@@ -77,7 +79,7 @@ function confirmCount() {
         </span>
       </div>
 
-      <span class="flex-1 text-sm font-medium">{{ option.label }}</span>
+      <span class="flex-1 text-left text-sm font-medium">{{ option.label }}</span>
 
       <!-- Count (click to edit) -->
       <button

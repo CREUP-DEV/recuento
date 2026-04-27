@@ -107,7 +107,7 @@ async function copyResults() {
 
 <template>
   <div
-    class="animate-fade-slide-up mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12"
+    class="animate-fade-slide-up mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12"
     :class="state.open && state.options.length > 0 ? 'pb-32 md:pb-12' : ''"
   >
     <!-- Header -->

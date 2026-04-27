@@ -23,7 +23,7 @@ function pct(count: number) {
     <TransitionGroup name="list" tag="div" class="space-y-2">
       <div v-for="option in props.options" :key="option.id" class="group">
         <div class="mb-1 flex items-center justify-between gap-3">
-          <span class="text-sm font-medium">{{ option.label }}</span>
+          <span class="text-left text-sm font-medium">{{ option.label }}</span>
           <span class="font-mono text-sm font-bold tabular-nums">
             {{ formatNumber(option.count) }} · {{ Math.round(pct(option.count)) }}%
           </span>

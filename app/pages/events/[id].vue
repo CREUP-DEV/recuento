@@ -36,7 +36,7 @@ useSeoMeta({
           {{ ev.name }}
         </h1>
         <p class="mt-2 text-white/80">
-          {{ formatDate(ev.startDate) }} — {{ formatDate(ev.endDate) }}
+          {{ formatDate(ev.startDate) }} - {{ formatDate(ev.endDate) }}
         </p>
       </div>
     </div>
@@ -46,7 +46,7 @@ useSeoMeta({
       <h1 class="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
         {{ ev.name }}
       </h1>
-      <p class="text-muted mt-2">{{ formatDate(ev.startDate) }} — {{ formatDate(ev.endDate) }}</p>
+      <p class="text-muted mt-2">{{ formatDate(ev.startDate) }} - {{ formatDate(ev.endDate) }}</p>
     </div>
 
     <!-- Votes -->
@@ -84,7 +84,7 @@ useSeoMeta({
                   <span class="relative inline-flex size-3 rounded-full bg-white" />
                 </span>
                 <span class="text-lg font-bold">{{ t('votes.activeNow') }}</span>
-                <span class="text-white/80">—</span>
+                <span class="text-white/80">-</span>
                 <span class="font-medium">{{ t('votes.viewVote') }}</span>
                 <UIcon name="i-tabler-arrow-right" class="ml-auto size-5" />
               </NuxtLink>

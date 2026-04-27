@@ -28,6 +28,8 @@ const openVotes = computed(() =>
 
 <template>
   <div class="animate-fade-slide-up space-y-8">
+    <h1 class="text-2xl font-bold">{{ t('admin.dashboard') }}</h1>
+
     <!-- Stats cards -->
     <div class="grid gap-4 sm:grid-cols-3">
       <div class="border-default bg-default rounded-xl border p-6 shadow-sm">
@@ -41,7 +43,9 @@ const openVotes = computed(() =>
             />
           </div>
           <div>
-            <p class="text-muted text-sm">{{ t('admin.totalEvents') }}</p>
+            <p class="text-sm text-neutral-600 dark:text-neutral-400">
+              {{ t('admin.totalEvents') }}
+            </p>
             <p class="text-2xl font-bold tabular-nums">{{ totalEvents }}</p>
           </div>
         </div>
@@ -55,7 +59,9 @@ const openVotes = computed(() =>
             <UIcon name="i-tabler-eye" class="size-5 text-green-600 dark:text-green-400" />
           </div>
           <div>
-            <p class="text-muted text-sm">{{ t('admin.activeEvents') }}</p>
+            <p class="text-sm text-neutral-600 dark:text-neutral-400">
+              {{ t('admin.activeEvents') }}
+            </p>
             <p class="text-2xl font-bold tabular-nums">{{ activeEvents }}</p>
           </div>
         </div>
@@ -69,7 +75,7 @@ const openVotes = computed(() =>
             <UIcon name="i-tabler-live-photo" class="size-5 text-red-600 dark:text-red-400" />
           </div>
           <div>
-            <p class="text-muted text-sm">{{ t('admin.openVotes') }}</p>
+            <p class="text-sm text-neutral-600 dark:text-neutral-400">{{ t('admin.openVotes') }}</p>
             <p class="text-2xl font-bold tabular-nums">{{ openVotes }}</p>
           </div>
         </div>

@@ -110,6 +110,8 @@ function confirmSetCount() {
             ref="colorInput"
             type="color"
             class="sr-only"
+            aria-hidden="true"
+            tabindex="-1"
             :value="option.color ?? defaultColor"
             @change="onColorChange"
           />
@@ -135,7 +137,7 @@ function confirmSetCount() {
         @click="emit('updateColor', null)"
       />
 
-      <span class="flex-1 text-sm font-medium">{{ option.label }}</span>
+      <span class="flex-1 text-left text-sm font-medium">{{ option.label }}</span>
 
       <div class="flex items-center gap-1">
         <UButton
