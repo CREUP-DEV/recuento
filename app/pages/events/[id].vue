@@ -7,7 +7,7 @@ const { formatDate } = useLocaleFormatting()
 const route = useRoute()
 const eventId = route.params.id as string
 
-const { data, error, status } = await useFetch(`/api/events/${eventId}`)
+const { data, error, status, refresh } = await useFetch(`/api/events/${eventId}`)
 const ev = computed(() => data.value?.data)
 
 function getVoteWinnerIds(vote: {
@@ -32,6 +32,13 @@ if (!ev.value && status.value !== 'pending') {
 
 useSeoMeta({
   title: () => ev.value?.name ?? t('events.title'),
+})
+
+onMounted(() => {
+  if (import.meta.server) return
+  const sse = new EventSource('/api/sse/votes')
+  sse.addEventListener('vote-status-change', () => refresh())
+  onBeforeUnmount(() => sse.close())
 })
 </script>
 

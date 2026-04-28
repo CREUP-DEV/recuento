@@ -135,15 +135,29 @@ async function addVote() {
 
 function patchVote(voteId: string, fields: Partial<AdminEventVote>) {
   if (!eventData.value?.data) return
-  const vote = eventData.value.data.votes.find((v) => v.id === voteId)
-  if (vote) Object.assign(vote, fields)
+  eventData.value = {
+    data: {
+      ...eventData.value.data,
+      votes: eventData.value.data.votes.map((v) => (v.id === voteId ? { ...v, ...fields } : v)),
+    },
+  }
 }
 
 function patchOption(voteId: string, optionId: string, fields: Partial<AdminEventVoteOption>) {
   if (!eventData.value?.data) return
-  const vote = eventData.value.data.votes.find((v) => v.id === voteId)
-  const option = vote?.options.find((o) => o.id === optionId)
-  if (option) Object.assign(option, fields)
+  eventData.value = {
+    data: {
+      ...eventData.value.data,
+      votes: eventData.value.data.votes.map((v) =>
+        v.id === voteId
+          ? {
+              ...v,
+              options: v.options.map((o) => (o.id === optionId ? { ...o, ...fields } : o)),
+            }
+          : v
+      ),
+    },
+  }
 }
 
 // ─── SSE: refresh on external vote-status-change ──────────────────────────────

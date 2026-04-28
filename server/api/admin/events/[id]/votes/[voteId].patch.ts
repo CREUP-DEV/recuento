@@ -3,6 +3,7 @@ import { createError } from 'h3'
 import { db } from '#db'
 import { votes } from '#db/schema'
 import { requireVoteInAdminScope } from '#server-utils/adminVoteScope'
+import { emitVoteStatusChange } from '#server-utils/sseManager'
 import { updateVoteSchema } from '#validation/votes'
 
 export default defineEventHandler(async (event) => {
@@ -49,6 +50,15 @@ export default defineEventHandler(async (event) => {
 
   if (!updated) {
     throw createError({ statusCode: 404, message: 'Votación no encontrada' })
+  }
+
+  if (data.visible !== undefined) {
+    emitVoteStatusChange({
+      type: 'vote-status-change',
+      voteId: updated.id,
+      eventId,
+      open: updated.open,
+    })
   }
 
   return { data: updated }
