@@ -151,6 +151,13 @@ function triggerRedo() {
 const localConfettiEnabled = useLocalStorage('recuento-local-confetti', true)
 const settingsOpen = ref(true)
 
+watch(
+  () => state.value.open,
+  (open) => {
+    if (open) settingsOpen.value = false
+  }
+)
+
 function toggleVoteOpen() {
   const wasOpen = state.value.open
   state.value.open = !state.value.open

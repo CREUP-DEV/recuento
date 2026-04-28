@@ -524,6 +524,14 @@ async function onDragChange(event: { moved?: { oldIndex: number; newIndex: numbe
 // ─── Vote settings ────────────────────────────────────────────────────────────
 
 const settingsOpen = ref(true)
+
+watch(
+  () => props.vote.open,
+  (open) => {
+    if (open) settingsOpen.value = false
+  }
+)
+
 const settingsMinimumVotes = ref<string>(
   props.vote.minimumVotes !== null ? String(props.vote.minimumVotes) : ''
 )
