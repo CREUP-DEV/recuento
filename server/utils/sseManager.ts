@@ -3,6 +3,7 @@ import type {
   SSEEvent,
   VoteCountUpdateEvent,
   VoteStatusChangeEvent,
+  VoteClosedEvent,
 } from '~~/shared/types/sseEvents'
 
 const emitter = new EventEmitter()
@@ -31,6 +32,10 @@ export function emitVoteUpdate(data: VoteCountUpdateEvent) {
 }
 
 export function emitVoteStatusChange(data: VoteStatusChangeEvent) {
+  emitter.emit('sse', data)
+}
+
+export function emitVoteClosed(data: VoteClosedEvent) {
   emitter.emit('sse', data)
 }
 

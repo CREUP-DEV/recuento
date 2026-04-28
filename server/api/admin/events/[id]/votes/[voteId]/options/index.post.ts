@@ -54,6 +54,7 @@ export default defineEventHandler(async (event) => {
         color: data.color ?? defaultColor,
         shortcut: data.shortcut ?? fallbackShortcut,
         order: nextOrder,
+        canWin: data.canWin ?? true,
       })
       .returning()
 

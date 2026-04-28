@@ -7,6 +7,7 @@ export interface LocalVoteOption {
   color: string | null
   count: number
   shortcut: string | null
+  canWin: boolean
 }
 
 export interface LocalVoteState {
@@ -15,6 +16,8 @@ export interface LocalVoteState {
   options: LocalVoteOption[]
   history: string[]
   redoHistory: string[]
+  minimumVotes: number | null
+  maxWinners: number | null
 }
 
 const DEFAULT_STATE: LocalVoteState = {
@@ -23,6 +26,8 @@ const DEFAULT_STATE: LocalVoteState = {
   options: [],
   history: [],
   redoHistory: [],
+  minimumVotes: null,
+  maxWinners: null,
 }
 
 function makeId() {
@@ -36,7 +41,9 @@ function reassignShortcuts(options: LocalVoteOption[]) {
 }
 
 function normalizeState(value: Partial<LocalVoteState> | null | undefined): LocalVoteState {
-  const options = Array.isArray(value?.options) ? value.options : []
+  const options = Array.isArray(value?.options)
+    ? value.options.map((o) => ({ ...o, canWin: typeof o.canWin === 'boolean' ? o.canWin : true }))
+    : []
   reassignShortcuts(options)
   const optionIds = new Set(options.map((option) => option.id))
   const history = Array.isArray(value?.history)
@@ -52,6 +59,8 @@ function normalizeState(value: Partial<LocalVoteState> | null | undefined): Loca
     options,
     history,
     redoHistory,
+    minimumVotes: typeof value?.minimumVotes === 'number' ? value.minimumVotes : null,
+    maxWinners: typeof value?.maxWinners === 'number' ? value.maxWinners : null,
   }
 }
 
@@ -86,6 +95,7 @@ export function useLocalVote() {
       color: DEFAULT_OPTION_COLORS[idx % DEFAULT_OPTION_COLORS.length] ?? null,
       count: 0,
       shortcut: getVoteShortcut(idx),
+      canWin: true,
     })
   }
 
@@ -132,6 +142,19 @@ export function useLocalVote() {
   function updateColor(id: string, color: string | null) {
     const opt = state.value.options.find((o) => o.id === id)
     if (opt) opt.color = color
+  }
+
+  function updateCanWin(id: string, canWin: boolean) {
+    const opt = state.value.options.find((o) => o.id === id)
+    if (opt) opt.canWin = canWin
+  }
+
+  function setMinimumVotes(value: number | null) {
+    state.value.minimumVotes = value
+  }
+
+  function setMaxWinners(value: number | null) {
+    state.value.maxWinners = value
   }
 
   function resetCounts() {
@@ -216,6 +239,9 @@ export function useLocalVote() {
     decrementOption,
     setCount,
     updateColor,
+    updateCanWin,
+    setMinimumVotes,
+    setMaxWinners,
     resetCounts,
     clearAll,
     reorderOptions,

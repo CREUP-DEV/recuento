@@ -7,10 +7,13 @@ import {
   getOptionSuggestionLabels,
   getOptionDisplayColor,
 } from '~~/shared/utils/votePresentation'
+import { calculateWinners } from '~~/shared/utils/winnerCalculation'
 
 const { t } = useI18n()
+const localePath = useLocalePath()
 const toast = useToast()
 const { copy } = useClipboard()
+const { launchConfetti } = useConfetti()
 const { listContainerRef: closedOptionsContainerRef, animateLayoutChange } = useListFlipAnimation()
 
 useSeoMeta({ title: () => t('localVote.title'), robots: 'noindex' })
@@ -26,12 +29,49 @@ const {
   decrementOption,
   setCount,
   updateColor,
+  updateCanWin,
+  setMinimumVotes,
+  setMaxWinners,
   resetCounts,
   clearAll,
   reorderOptions,
   undoLastVote,
   redoLastVote,
 } = useLocalVote()
+
+const settingsMinimumVotes = ref<string>(
+  state.value.minimumVotes !== null ? String(state.value.minimumVotes) : ''
+)
+const settingsMaxWinners = ref<string>(
+  state.value.maxWinners !== null ? String(state.value.maxWinners) : ''
+)
+
+function applyMinimumVotes(raw: string | number) {
+  const str = String(raw)
+  const parsed = str.trim() === '' ? null : parseInt(str, 10)
+  if (parsed !== null && (Number.isNaN(parsed) || parsed < 1)) return
+  setMinimumVotes(parsed)
+}
+
+function applyMaxWinners(raw: string | number) {
+  const str = String(raw)
+  const parsed = str.trim() === '' ? null : parseInt(str, 10)
+  if (parsed !== null && (Number.isNaN(parsed) || parsed < 1)) return
+  setMaxWinners(parsed)
+}
+
+function getThresholdReached(optionId: string, count: number, canWin: boolean) {
+  return state.value.minimumVotes !== null && canWin && count >= state.value.minimumVotes
+}
+
+const localWinners = computed(() => {
+  if (state.value.open) return new Set<string>()
+  return calculateWinners(
+    state.value.options.map((o) => ({ id: o.id, count: o.count, canWin: o.canWin })),
+    state.value.minimumVotes,
+    state.value.maxWinners
+  ).winnerIds
+})
 
 const { flashingOptionId, flashOption } = useVoteKeyboard(
   computed(() => state.value.options),
@@ -108,8 +148,15 @@ function triggerRedo() {
   }
 }
 
+const localConfettiEnabled = useLocalStorage('recuento-local-confetti', true)
+const settingsOpen = ref(true)
+
 function toggleVoteOpen() {
+  const wasOpen = state.value.open
   state.value.open = !state.value.open
+  if (wasOpen && localConfettiEnabled.value && localWinners.value.size > 0) {
+    launchConfetti()
+  }
 }
 
 const pendingDeleteOption = computed(
@@ -162,6 +209,17 @@ async function copyResults() {
     class="animate-fade-slide-up mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12"
     :class="state.open && state.options.length > 0 ? 'pb-32 md:pb-12' : ''"
   >
+    <!-- Back to home -->
+    <div class="mb-4">
+      <NuxtLink
+        :to="localePath('/')"
+        class="text-muted hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors"
+      >
+        <UIcon name="i-tabler-arrow-left" class="size-4" />
+        {{ t('nav.home') }}
+      </NuxtLink>
+    </div>
+
     <!-- Header -->
     <div class="mb-8 flex items-start justify-between gap-4">
       <div class="min-w-0 flex-1">
@@ -208,8 +266,8 @@ async function copyResults() {
 
         <div class="mt-3 flex items-center gap-3">
           <VoteStatus :open="state.open" />
-          <span class="text-muted flex items-center gap-1 text-xs">
-            <UIcon name="i-tabler-device-floppy" class="size-3.5 shrink-0" aria-hidden="true" />
+          <span class="text-muted flex items-center gap-1 text-sm">
+            <UIcon name="i-tabler-device-floppy" class="size-4 shrink-0" aria-hidden="true" />
             {{ t('localVote.description') }}
           </span>
         </div>
@@ -217,8 +275,96 @@ async function copyResults() {
 
       <!-- Total -->
       <div class="shrink-0 text-right">
-        <p class="text-muted text-sm">{{ t('localVote.total') }}</p>
-        <p class="font-mono text-3xl font-bold tabular-nums">{{ totalVotes }}</p>
+        <p class="text-muted text-base">{{ t('localVote.total') }}</p>
+        <p class="font-mono text-4xl font-bold tabular-nums">{{ totalVotes }}</p>
+      </div>
+    </div>
+
+    <!-- Vote settings (accordion) -->
+    <div class="border-default mb-6 rounded-xl border">
+      <button
+        type="button"
+        class="flex w-full items-center justify-between px-4 py-3 text-left"
+        :aria-expanded="settingsOpen"
+        @click="settingsOpen = !settingsOpen"
+      >
+        <span class="text-muted text-sm font-semibold tracking-wide uppercase">
+          {{ t('admin.voteSettings') }}
+        </span>
+        <UIcon
+          name="i-tabler-chevron-down"
+          class="text-muted size-4 shrink-0 transition-transform duration-200"
+          :class="settingsOpen ? 'rotate-180' : ''"
+        />
+      </button>
+      <div
+        class="grid transition-[grid-template-rows] duration-300 ease-in-out"
+        :class="settingsOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'"
+      >
+        <div class="overflow-hidden">
+          <div class="px-4 pb-4" :class="state.open ? 'pointer-events-none opacity-60' : ''">
+            <div class="flex flex-wrap gap-4">
+              <div class="flex min-w-40 flex-1 flex-col gap-1">
+                <label class="text-muted text-sm font-medium" for="local-min-votes">
+                  {{ t('localVote.minimumVotes') }}
+                </label>
+                <UInput
+                  id="local-min-votes"
+                  v-model="settingsMinimumVotes"
+                  type="number"
+                  min="1"
+                  size="sm"
+                  :placeholder="t('localVote.minimumVotesPlaceholder')"
+                  @blur="applyMinimumVotes(settingsMinimumVotes)"
+                  @keydown.enter.prevent="applyMinimumVotes(settingsMinimumVotes)"
+                />
+              </div>
+              <div class="flex min-w-40 flex-1 flex-col gap-1">
+                <label class="text-muted text-sm font-medium" for="local-max-winners">
+                  {{ t('localVote.maxWinners') }}
+                </label>
+                <UInput
+                  id="local-max-winners"
+                  v-model="settingsMaxWinners"
+                  type="number"
+                  min="1"
+                  size="sm"
+                  :placeholder="t('localVote.maxWinnersPlaceholder')"
+                  @blur="applyMaxWinners(settingsMaxWinners)"
+                  @keydown.enter.prevent="applyMaxWinners(settingsMaxWinners)"
+                />
+              </div>
+            </div>
+            <p class="text-muted mt-3 text-xs">{{ t('admin.canWinHelp') }}</p>
+            <div class="border-default mt-3 flex items-center gap-3 border-t pt-3">
+              <USwitch v-model="localConfettiEnabled" :aria-label="t('admin.confettiEnabled')" />
+              <div>
+                <p class="text-sm font-medium">{{ t('admin.confettiEnabled') }}</p>
+                <p class="text-muted text-xs">{{ t('admin.confettiEnabledHelp') }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Winners (post-close) -->
+    <div
+      v-if="!state.open && localWinners.size > 0"
+      class="border-default mb-6 rounded-xl border p-4"
+    >
+      <p class="text-muted mb-2 text-xs font-semibold tracking-wide uppercase">
+        {{ t('votes.winners') }}
+      </p>
+      <div class="flex flex-wrap gap-2">
+        <span
+          v-for="option in state.options.filter((o) => localWinners.has(o.id))"
+          :key="option.id"
+          class="inline-flex items-center gap-1.5 rounded-full bg-yellow-100 px-3 py-1 text-sm font-medium text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
+        >
+          <UIcon name="i-tabler-trophy" class="size-3.5" />
+          {{ option.label }}
+        </span>
       </div>
     </div>
 
@@ -254,11 +400,14 @@ async function copyResults() {
               :locked="state.open"
               :active="state.open"
               :flashing="flashingOptionId === option.id"
+              :threshold-reached="getThresholdReached(option.id, option.count, option.canWin)"
+              :is-winner="localWinners.has(option.id)"
               @delete="confirmDeleteOption(option.id)"
               @increment="incrementOption(option.id)"
               @decrement="decrementOption(option.id)"
               @set-count="(count) => setCount(option.id, count)"
               @update-color="(color) => updateColor(option.id, color)"
+              @update-can-win="(canWin) => updateCanWin(option.id, canWin)"
               @move-up="moveOption(index, index - 1)"
               @move-down="moveOption(index, index + 1)"
             />
@@ -381,7 +530,7 @@ async function copyResults() {
       <!-- Keyboard hint -->
       <span
         v-if="state.open && activeShortcuts.length > 0"
-        class="text-muted ml-auto hidden items-center gap-4 text-xs md:flex"
+        class="text-muted ml-auto hidden items-center gap-4 text-sm md:flex"
       >
         <span class="flex items-center gap-1.5">
           <UIcon name="i-tabler-keyboard" class="size-3.5" />

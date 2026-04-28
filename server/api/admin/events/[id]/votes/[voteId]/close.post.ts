@@ -1,8 +1,9 @@
-import { eq, sql } from 'drizzle-orm'
+import { asc, eq, sql } from 'drizzle-orm'
 import { db } from '#db'
-import { votes } from '#db/schema'
+import { votes, voteOptions } from '#db/schema'
 import { requireVoteInAdminScope } from '#server-utils/adminVoteScope'
-import { emitVoteStatusChange } from '#server-utils/sseManager'
+import { emitVoteStatusChange, emitVoteClosed } from '#server-utils/sseManager'
+import { calculateWinners } from '~~/shared/utils/winnerCalculation'
 
 export default defineEventHandler(async (event) => {
   const eventId = getRouterParam(event, 'id')
@@ -17,22 +18,48 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'La votación ya está cerrada' })
   }
 
-  const [updated] = await db
-    .update(votes)
-    .set({ open: false, endedAt: sql`now()` })
-    .where(eq(votes.id, voteId))
-    .returning()
+  const result = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(votes)
+      .set({ open: false, endedAt: sql`now()` })
+      .where(eq(votes.id, voteId))
+      .returning()
 
-  if (!updated) throw createError({ statusCode: 500, message: 'Error al cerrar la votación' })
+    if (!updated) throw createError({ statusCode: 500, message: 'Error al cerrar la votación' })
+
+    const options = await tx
+      .select()
+      .from(voteOptions)
+      .where(eq(voteOptions.voteId, voteId))
+      .orderBy(asc(voteOptions.order))
+
+    const { winnerIds } = calculateWinners(
+      options.map((o) => ({ id: o.id, count: o.count, canWin: o.canWin })),
+      updated.minimumVotes ?? null,
+      updated.maxWinners ?? null
+    )
+
+    return { updated, winnerIds }
+  })
 
   emitVoteStatusChange({
     type: 'vote-status-change',
-    voteId: updated.id,
-    eventId: updated.eventId,
+    voteId: result.updated.id,
+    eventId: result.updated.eventId,
     open: false,
-    startedAt: updated.startedAt?.toISOString() ?? null,
-    endedAt: updated.endedAt?.toISOString() ?? null,
+    startedAt: result.updated.startedAt?.toISOString() ?? null,
+    endedAt: result.updated.endedAt?.toISOString() ?? null,
   })
 
-  return { data: updated }
+  emitVoteClosed({
+    type: 'vote-closed',
+    voteId: result.updated.id,
+    eventId: result.updated.eventId,
+    winnerIds: [...result.winnerIds],
+    minimumVotes: result.updated.minimumVotes ?? null,
+    maxWinners: result.updated.maxWinners ?? null,
+    confettiEnabled: result.updated.confettiEnabled,
+  })
+
+  return { data: { ...result.updated, winnerIds: [...result.winnerIds] } }
 })

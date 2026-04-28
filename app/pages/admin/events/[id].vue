@@ -7,6 +7,7 @@ interface AdminEventVoteOption {
   color: string | null
   count: number
   shortcut: string | null
+  canWin: boolean
 }
 
 interface AdminEventVote {
@@ -16,6 +17,9 @@ interface AdminEventVote {
   visible: boolean
   startedAt: string | null
   endedAt: string | null
+  minimumVotes: number | null
+  maxWinners: number | null
+  confettiEnabled: boolean
   options: AdminEventVoteOption[]
 }
 

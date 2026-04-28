@@ -9,6 +9,7 @@ interface VoteOption {
   color: string | null
   count: number
   shortcut: string | null
+  canWin: boolean
 }
 
 const props = defineProps<{
@@ -20,6 +21,8 @@ const props = defineProps<{
   isLast: boolean
   locked?: boolean
   active?: boolean
+  thresholdReached?: boolean
+  isWinner?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -28,6 +31,7 @@ const emit = defineEmits<{
   delete: []
   setCount: [count: number]
   updateColor: [color: string | null]
+  'update-can-win': [canWin: boolean]
   moveUp: []
   moveDown: []
 }>()
@@ -103,6 +107,7 @@ watch(isEditingCount, async (editing) => {
         ? 'bg-default rounded-xl p-3 shadow-sm'
         : 'bg-default hover:bg-muted/20 rounded-2xl p-4 shadow-sm',
       flashing ? 'bg-primary/10 ring-primary/20 ring-1' : '',
+      thresholdReached && !flashing ? 'bg-green-50 dark:bg-green-950/20' : '',
     ]"
   >
     <div class="flex items-center gap-2">
@@ -194,7 +199,30 @@ watch(isEditingCount, async (editing) => {
         @click.stop="emit('updateColor', null)"
       />
 
-      <span class="flex-1 text-left text-sm font-medium">{{ option.label }}</span>
+      <div class="flex min-w-0 flex-1 items-center gap-2">
+        <span class="min-w-0 truncate text-left text-sm font-medium">{{ option.label }}</span>
+        <UIcon
+          v-if="isWinner"
+          name="i-tabler-trophy"
+          class="size-4 shrink-0 text-amber-500"
+          :aria-label="t('accessibility.winner')"
+        />
+        <span v-else-if="active && !option.canWin" class="text-muted shrink-0 text-xs">
+          {{ t('admin.cannotWin') }}
+        </span>
+        <div v-if="!active" class="ml-auto flex shrink-0 items-center gap-1.5">
+          <USwitch
+            :model-value="option.canWin"
+            size="xs"
+            :disabled="locked"
+            :aria-label="t('admin.toggleCanWin')"
+            @update:model-value="(val: boolean) => emit('update-can-win', val)"
+          />
+          <span class="text-muted text-xs select-none">
+            {{ option.canWin ? t('admin.canWin') : t('admin.cannotWin') }}
+          </span>
+        </div>
+      </div>
 
       <Transition name="vote-controls" mode="out-in">
         <div v-if="canShowVoteControls" key="vote-controls" class="flex items-center gap-1">
@@ -266,6 +294,12 @@ watch(isEditingCount, async (editing) => {
       </Transition>
     </div>
 
-    <VoteBar :count="option.count" :total="total" :color="option.color ?? defaultColor" />
+    <VoteBar
+      :count="option.count"
+      :total="total"
+      :color="option.color ?? defaultColor"
+      :threshold-reached="thresholdReached"
+      :is-winner="isWinner"
+    />
   </div>
 </template>

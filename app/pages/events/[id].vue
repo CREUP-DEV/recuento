@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { calculateWinners } from '~~/shared/utils/winnerCalculation'
+
 const { t } = useI18n()
 const localePath = useLocalePath()
 const { formatDate } = useLocaleFormatting()
@@ -7,6 +9,22 @@ const eventId = route.params.id as string
 
 const { data, error, status } = await useFetch(`/api/events/${eventId}`)
 const ev = computed(() => data.value?.data)
+
+function getVoteWinnerIds(vote: {
+  open: boolean
+  minimumVotes?: number | null
+  maxWinners?: number | null
+  options?: Array<{ id: string; count: number; canWin?: boolean }>
+}): string[] {
+  if (vote.open || !vote.options?.length) return []
+  return [
+    ...calculateWinners(
+      vote.options.map((o) => ({ id: o.id, count: o.count, canWin: o.canWin ?? true })),
+      vote.minimumVotes ?? null,
+      vote.maxWinners ?? null
+    ).winnerIds,
+  ]
+}
 
 if (!ev.value && status.value !== 'pending') {
   throw createError({ statusCode: 404, statusMessage: 'Evento no encontrado' })
@@ -90,7 +108,19 @@ useSeoMeta({
               </NuxtLink>
             </template>
             <template v-else>
-              <VoteChart v-if="vote.options && vote.options.length > 0" :options="vote.options" />
+              <template v-if="vote.options && vote.options.length > 0">
+                <div v-if="getVoteWinnerIds(vote).length > 0" class="mb-4 flex flex-wrap gap-2">
+                  <span
+                    v-for="opt in vote.options.filter((o) => getVoteWinnerIds(vote).includes(o.id))"
+                    :key="opt.id"
+                    class="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                  >
+                    <UIcon name="i-tabler-trophy" class="size-3.5" />
+                    {{ opt.label }}
+                  </span>
+                </div>
+                <VoteChart :options="vote.options" :winner-ids="getVoteWinnerIds(vote)" />
+              </template>
               <p v-else class="text-muted text-sm">{{ t('votes.noVotes') }}</p>
             </template>
           </div>

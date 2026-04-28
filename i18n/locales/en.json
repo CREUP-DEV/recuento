@@ -37,7 +37,14 @@
     "viewVote": "View live vote",
     "option": "Option",
     "count": "Votes",
-    "percentage": "Percentage"
+    "percentage": "Percentage",
+    "minimumVotesInfo": "Minimum threshold: {count} votes",
+    "thresholdReached": "Threshold reached",
+    "winner": "Winner",
+    "winners": "Winners",
+    "noWinner": "No winner",
+    "canWinLabel": "Counts toward result",
+    "cannotWinLabel": "Does not count toward result"
   },
   "voteOptions": {
     "suggestionLabel": "Suggestion:",
@@ -82,7 +89,11 @@
     "copySuccess": "Results copied",
     "copyError": "Results could not be copied",
     "totalEmitted": "Total votes cast",
-    "incrementOption": "Add vote to {option}"
+    "incrementOption": "Add vote to {option}",
+    "minimumVotes": "Minimum threshold",
+    "minimumVotesPlaceholder": "No minimum threshold",
+    "maxWinners": "Max winners",
+    "maxWinnersPlaceholder": "No limit"
   },
   "admin": {
     "dashboard": "Dashboard",
@@ -146,6 +157,19 @@
     "copyError": "Results could not be copied",
     "totalEmitted": "Total votes cast",
     "incrementOption": "Add vote to {option}",
+    "voteSettings": "Result settings",
+    "minimumVotes": "Minimum threshold (votes)",
+    "minimumVotesPlaceholder": "No minimum threshold",
+    "minimumVotesHelp": "Minimum votes for an option to be declared a winner. Optional.",
+    "maxWinners": "Max winners",
+    "maxWinnersPlaceholder": "No limit",
+    "maxWinnersHelp": "Maximum number of options that can win. Optional.",
+    "toggleCanWin": "Include/exclude from result calculation",
+    "canWin": "Counts",
+    "cannotWin": "Doesn't count",
+    "canWinHelp": "This setting only applies to options that count toward the result.",
+    "confettiEnabled": "Confetti on close",
+    "confettiEnabledHelp": "Launches confetti when announcing results.",
     "label": "Label",
     "color": "Colour",
     "count": "Count",
@@ -180,7 +204,10 @@
       "visibilityError": "Visibility change error",
       "eventCreated": "Event created",
       "eventCreateError": "Event creation error",
-      "fieldsRequired": "All fields are required"
+      "fieldsRequired": "All fields are required",
+      "voteSettingsUpdated": "Vote settings updated",
+      "voteSettingsError": "Error updating settings",
+      "canWinError": "Error updating option"
     }
   },
   "auth": {
@@ -199,7 +226,10 @@
     "voteChart": "Vote bar chart by option",
     "changeLanguage": "Change language",
     "collapseSidebar": "Collapse sidebar",
-    "expandSidebar": "Expand sidebar"
+    "expandSidebar": "Expand sidebar",
+    "winner": "Winner",
+    "thresholdReached": "Minimum threshold reached",
+    "doesNotCount": "Does not count"
   },
   "common": {
     "loading": "Loading…",

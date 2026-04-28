@@ -10,7 +10,11 @@ const props = defineProps<{
     label: string
     color: string | null
     count: number
+    canWin?: boolean
+    thresholdReached?: boolean
   }>
+  minimumVotes?: number | null
+  winnerIds?: string[]
 }>()
 
 const totalVotes = computed(() => props.options.reduce((sum, o) => sum + o.count, 0))
@@ -18,15 +22,38 @@ const totalVotes = computed(() => props.options.reduce((sum, o) => sum + o.count
 function pct(count: number) {
   return totalVotes.value > 0 ? (count / totalVotes.value) * 100 : 0
 }
+
+function isWinner(optionId: string) {
+  return props.winnerIds ? props.winnerIds.includes(optionId) : false
+}
 </script>
 
 <template>
   <div :aria-label="t('accessibility.voteChart')" role="img" class="space-y-3">
     <TransitionGroup name="list" tag="div" class="space-y-2">
       <div v-for="(option, index) in props.options" :key="option.id" class="group">
-        <div class="mb-1 flex items-center justify-between gap-3">
-          <span class="text-left text-sm font-medium">{{ option.label }}</span>
-          <span class="font-mono text-sm font-bold tabular-nums">
+        <div class="mb-1.5 flex items-center justify-between gap-3">
+          <div class="flex min-w-0 items-center gap-2">
+            <span
+              class="text-left text-base font-medium"
+              :class="{ 'text-muted': option.canWin === false }"
+            >
+              {{ option.label }}
+            </span>
+            <UIcon
+              v-if="isWinner(option.id)"
+              name="i-tabler-trophy"
+              class="size-5 shrink-0 text-yellow-500"
+              :aria-label="t('accessibility.winner')"
+            />
+            <UIcon
+              v-else-if="option.thresholdReached && option.canWin !== false"
+              name="i-tabler-check"
+              class="size-5 shrink-0 text-green-500"
+              :aria-label="t('accessibility.thresholdReached')"
+            />
+          </div>
+          <span class="shrink-0 font-mono text-base font-bold tabular-nums">
             {{ formatNumber(option.count) }} · {{ Math.round(pct(option.count)) }}%
           </span>
         </div>
@@ -34,14 +61,21 @@ function pct(count: number) {
           :count="option.count"
           :total="totalVotes"
           :color="getOptionDisplayColor(option.color, index)"
+          :threshold-reached="option.thresholdReached && option.canWin !== false"
+          :is-winner="isWinner(option.id)"
+          :tall="true"
         />
       </div>
     </TransitionGroup>
 
     <div class="border-default flex items-center justify-between border-t pt-3">
-      <span class="text-muted text-sm font-medium">{{ t('votes.total') }}</span>
-      <span class="font-mono text-lg font-bold tabular-nums">{{ formatNumber(totalVotes) }}</span>
+      <span class="text-muted text-base font-medium">{{ t('votes.total') }}</span>
+      <span class="font-mono text-xl font-bold tabular-nums">{{ formatNumber(totalVotes) }}</span>
     </div>
+
+    <p v-if="minimumVotes" class="text-muted text-sm">
+      {{ t('votes.minimumVotesInfo', { count: minimumVotes }) }}
+    </p>
 
     <!-- Screen-reader accessible data table -->
     <div class="sr-only">
@@ -51,6 +85,9 @@ function pct(count: number) {
             <th scope="col">{{ t('votes.option') }}</th>
             <th scope="col">{{ t('votes.count') }}</th>
             <th scope="col">{{ t('votes.percentage') }}</th>
+            <th scope="col">{{ t('accessibility.doesNotCount') }}</th>
+            <th scope="col">{{ t('accessibility.thresholdReached') }}</th>
+            <th scope="col">{{ t('accessibility.winner') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -58,6 +95,15 @@ function pct(count: number) {
             <td>{{ option.label }}</td>
             <td>{{ formatNumber(option.count) }}</td>
             <td>{{ Math.round(pct(option.count)) }}%</td>
+            <td>{{ option.canWin === false ? t('votes.cannotWinLabel') : '' }}</td>
+            <td>
+              {{
+                option.thresholdReached && option.canWin !== false
+                  ? t('accessibility.thresholdReached')
+                  : ''
+              }}
+            </td>
+            <td>{{ isWinner(option.id) ? t('accessibility.winner') : '' }}</td>
           </tr>
         </tbody>
         <tfoot>
@@ -65,6 +111,9 @@ function pct(count: number) {
             <td>{{ t('votes.total') }}</td>
             <td>{{ formatNumber(totalVotes) }}</td>
             <td>100%</td>
+            <td />
+            <td />
+            <td />
           </tr>
         </tfoot>
       </table>

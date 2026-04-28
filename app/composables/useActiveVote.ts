@@ -2,6 +2,8 @@ export interface ActiveVoteData {
   id: string
   name: string
   eventId: string
+  minimumVotes: number | null
+  maxWinners: number | null
   event?: {
     id: string
     name: string
@@ -11,6 +13,7 @@ export interface ActiveVoteData {
     label: string
     color: string | null
     count: number
+    canWin: boolean
   }>
 }
 
@@ -33,6 +36,7 @@ export function useActiveVote() {
   // useState is SSR-safe: scoped per request on server, shared on client
   const activeVote = useState<ActiveVoteData | null>('active-vote', () => null)
   const isLoading = useState<boolean>('active-vote-loading', () => true)
+  const winnerIds = useState<string[]>('active-vote-winner-ids', () => [])
 
   async function refresh() {
     try {
@@ -51,9 +55,43 @@ export function useActiveVote() {
 
     _sse.addEventListener('connected', () => {
       _reconnectDelay = 1_000
+      winnerIds.value = []
+      refresh()
     })
 
-    _sse.addEventListener('vote-status-change', () => refresh())
+    _sse.addEventListener('vote-count-update', (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data)
+        if (!activeVote.value || data.voteId !== activeVote.value.id) return
+        activeVote.value = {
+          ...activeVote.value,
+          minimumVotes: data.minimumVotes ?? null,
+          options: data.options,
+        }
+      } catch {
+        // Malformed event — ignore
+      }
+    })
+
+    _sse.addEventListener('vote-status-change', (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data)
+        if (data?.open === true) winnerIds.value = []
+        refresh()
+      } catch {
+        refresh()
+      }
+    })
+
+    _sse.addEventListener('vote-closed', (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data)
+        if (!activeVote.value || data.voteId !== activeVote.value.id) return
+        winnerIds.value = Array.isArray(data.winnerIds) ? data.winnerIds : []
+      } catch {
+        // Malformed event — ignore
+      }
+    })
 
     _sse.onerror = () => {
       _sse?.close()
@@ -84,5 +122,5 @@ export function useActiveVote() {
     }
   })
 
-  return { activeVote, isLoading, refresh }
+  return { activeVote, isLoading, refresh, winnerIds }
 }

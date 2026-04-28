@@ -11,6 +11,7 @@ import {
   getOptionSuggestionLabels,
   getOptionDisplayColor,
 } from '~~/shared/utils/votePresentation'
+import { calculateWinners } from '~~/shared/utils/winnerCalculation'
 
 interface VoteOption {
   id: string
@@ -18,6 +19,7 @@ interface VoteOption {
   color: string | null
   count: number
   shortcut: string | null
+  canWin: boolean
 }
 
 interface Vote {
@@ -27,6 +29,9 @@ interface Vote {
   visible: boolean
   startedAt: string | null
   endedAt: string | null
+  minimumVotes: number | null
+  maxWinners: number | null
+  confettiEnabled: boolean
   options: VoteOption[]
 }
 
@@ -44,6 +49,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const toast = useToast()
 const { copy } = useClipboard()
+const { launchConfetti } = useConfetti()
 
 // ─── Optimistic counts ────────────────────────────────────────────────────────
 // Stores count overrides applied before the server confirms, keyed by option ID.
@@ -60,6 +66,23 @@ const displayOptions = computed<VoteOption[]>(() =>
     count: localCounts.value[o.id] ?? o.count,
   }))
 )
+
+const winnerIds = computed(() => {
+  if (props.vote.open) return new Set<string>()
+  return calculateWinners(
+    props.vote.options.map((o) => ({ id: o.id, count: o.count, canWin: o.canWin })),
+    props.vote.minimumVotes,
+    props.vote.maxWinners
+  ).winnerIds
+})
+
+function getThresholdReached(option: VoteOption) {
+  return (
+    props.vote.minimumVotes !== null &&
+    option.canWin &&
+    (localCounts.value[option.id] ?? option.count) >= props.vote.minimumVotes
+  )
+}
 const totalVotes = computed(() =>
   displayOptions.value.reduce((sum, option) => sum + option.count, 0)
 )
@@ -141,13 +164,17 @@ async function toggleOpen() {
   const action = props.vote.open ? 'close' : 'open'
   isTogglingOpen.value = true
   try {
-    await $fetch(`/api/admin/events/${props.eventId}/votes/${props.vote.id}/${action}`, {
-      method: 'POST',
-    })
+    const res = await $fetch<{ data: { winnerIds?: string[] } }>(
+      `/api/admin/events/${props.eventId}/votes/${props.vote.id}/${action}`,
+      { method: 'POST' }
+    )
     toast.add({
       title: props.vote.open ? t('admin.toasts.voteClosed') : t('admin.toasts.voteOpened'),
       color: 'success',
     })
+    if (action === 'close' && props.vote.confettiEnabled && res.data.winnerIds?.length) {
+      launchConfetti()
+    }
     localCounts.value = {}
     voteHistory.value = []
     redoHistory.value = []
@@ -494,6 +521,81 @@ async function onDragChange(event: { moved?: { oldIndex: number; newIndex: numbe
   isReorderingOptions.value = false
 }
 
+// ─── Vote settings ────────────────────────────────────────────────────────────
+
+const settingsOpen = ref(true)
+const settingsMinimumVotes = ref<string>(
+  props.vote.minimumVotes !== null ? String(props.vote.minimumVotes) : ''
+)
+const settingsMaxWinners = ref<string>(
+  props.vote.maxWinners !== null ? String(props.vote.maxWinners) : ''
+)
+const confettiToggle = ref(props.vote.confettiEnabled)
+
+watch(
+  () => props.vote.minimumVotes,
+  (val) => {
+    settingsMinimumVotes.value = val !== null ? String(val) : ''
+  }
+)
+watch(
+  () => props.vote.maxWinners,
+  (val) => {
+    settingsMaxWinners.value = val !== null ? String(val) : ''
+  }
+)
+watch(
+  () => props.vote.confettiEnabled,
+  (val) => {
+    confettiToggle.value = val
+  }
+)
+
+async function updateConfettiSetting(value: boolean) {
+  try {
+    await $fetch(`/api/admin/events/${props.eventId}/votes/${props.vote.id}`, {
+      method: 'PATCH',
+      body: { confettiEnabled: value },
+    })
+    emit('update-vote', { confettiEnabled: value })
+  } catch {
+    confettiToggle.value = !value
+    toast.add({ title: t('admin.toasts.voteSettingsError'), color: 'error' })
+  }
+}
+
+async function updateVoteSettings(field: 'minimumVotes' | 'maxWinners', rawValue: string | number) {
+  const str = String(rawValue)
+  const parsed = str.trim() === '' ? null : parseInt(str, 10)
+  if (parsed !== null && (Number.isNaN(parsed) || parsed < 1)) return
+  const currentVal = field === 'minimumVotes' ? props.vote.minimumVotes : props.vote.maxWinners
+  if (parsed === currentVal) return
+  try {
+    await $fetch(`/api/admin/events/${props.eventId}/votes/${props.vote.id}`, {
+      method: 'PATCH',
+      body: { [field]: parsed },
+    })
+    emit('update-vote', { [field]: parsed })
+    toast.add({ title: t('admin.toasts.voteSettingsUpdated'), color: 'success' })
+  } catch {
+    toast.add({ title: t('admin.toasts.voteSettingsError'), color: 'error' })
+  }
+}
+
+async function updateOptionCanWin(optionId: string, canWin: boolean) {
+  try {
+    await $fetch(`/api/admin/events/${props.eventId}/votes/${props.vote.id}/options/${optionId}`, {
+      method: 'PATCH',
+      body: { canWin },
+    })
+    emit('update-option', optionId, { canWin })
+    const opt = sortableOptions.value.find((o) => o.id === optionId)
+    if (opt) opt.canWin = canWin
+  } catch {
+    toast.add({ title: t('admin.toasts.canWinError'), color: 'error' })
+  }
+}
+
 const newOptionLabel = ref('')
 const suggestedOptionLabels = computed(() =>
   getOptionSuggestionLabels(t, SUGGESTED_OPTION_LABEL_KEYS[props.vote.options.length])
@@ -644,7 +746,103 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
     </div>
 
     <!-- Options -->
-    <div class="relative z-10 space-y-3 p-6">
+    <div class="relative z-10 space-y-4 p-6">
+      <!-- Vote settings (accordion) -->
+      <div class="border-default rounded-lg border">
+        <button
+          type="button"
+          class="flex w-full items-center justify-between px-4 py-3 text-left"
+          :aria-expanded="settingsOpen"
+          @click="settingsOpen = !settingsOpen"
+        >
+          <span class="text-muted text-sm font-semibold tracking-wide uppercase">
+            {{ t('admin.voteSettings') }}
+          </span>
+          <UIcon
+            name="i-tabler-chevron-down"
+            class="text-muted size-4 shrink-0 transition-transform duration-200"
+            :class="settingsOpen ? 'rotate-180' : ''"
+          />
+        </button>
+        <div
+          class="grid transition-[grid-template-rows] duration-300 ease-in-out"
+          :class="settingsOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'"
+        >
+          <div class="overflow-hidden">
+            <div class="px-4 pb-4" :class="vote.open ? 'pointer-events-none opacity-60' : ''">
+              <div class="flex flex-wrap gap-4">
+                <div class="flex min-w-40 flex-1 flex-col gap-1">
+                  <label class="text-muted text-sm font-medium" for="setting-min-votes">
+                    {{ t('admin.minimumVotes') }}
+                  </label>
+                  <UInput
+                    id="setting-min-votes"
+                    v-model="settingsMinimumVotes"
+                    type="number"
+                    min="1"
+                    size="sm"
+                    :placeholder="t('admin.minimumVotesPlaceholder')"
+                    @blur="updateVoteSettings('minimumVotes', settingsMinimumVotes)"
+                    @keydown.enter.prevent="
+                      updateVoteSettings('minimumVotes', settingsMinimumVotes)
+                    "
+                  />
+                  <p class="text-muted text-xs">{{ t('admin.minimumVotesHelp') }}</p>
+                </div>
+                <div class="flex min-w-40 flex-1 flex-col gap-1">
+                  <label class="text-muted text-sm font-medium" for="setting-max-winners">
+                    {{ t('admin.maxWinners') }}
+                  </label>
+                  <UInput
+                    id="setting-max-winners"
+                    v-model="settingsMaxWinners"
+                    type="number"
+                    min="1"
+                    size="sm"
+                    :placeholder="t('admin.maxWinnersPlaceholder')"
+                    @blur="updateVoteSettings('maxWinners', settingsMaxWinners)"
+                    @keydown.enter.prevent="updateVoteSettings('maxWinners', settingsMaxWinners)"
+                  />
+                  <p class="text-muted text-xs">{{ t('admin.maxWinnersHelp') }}</p>
+                </div>
+              </div>
+              <p class="text-muted mt-3 text-xs">{{ t('admin.canWinHelp') }}</p>
+              <div class="border-default mt-3 flex items-center gap-3 border-t pt-3">
+                <USwitch
+                  v-model="confettiToggle"
+                  :aria-label="t('admin.confettiEnabled')"
+                  @update:model-value="updateConfettiSetting"
+                />
+                <div>
+                  <p class="text-sm font-medium">{{ t('admin.confettiEnabled') }}</p>
+                  <p class="text-muted text-xs">{{ t('admin.confettiEnabledHelp') }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results with winners (post-close) -->
+      <div
+        v-if="!vote.open && displayOptions.length > 0 && winnerIds.size > 0"
+        class="border-default rounded-lg border p-4"
+      >
+        <p class="text-muted mb-2 text-xs font-semibold tracking-wide uppercase">
+          {{ t('votes.winners') }}
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <span
+            v-for="option in displayOptions.filter((o) => winnerIds.has(o.id))"
+            :key="option.id"
+            class="inline-flex items-center gap-1.5 rounded-full bg-yellow-100 px-3 py-1 text-sm font-medium text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
+          >
+            <UIcon name="i-tabler-trophy" class="size-3.5" />
+            {{ option.label }}
+          </span>
+        </div>
+      </div>
+
       <div v-if="vote.open" class="space-y-3">
         <AdminVoteOptionRow
           v-for="(option, index) in displayOptions"
@@ -657,6 +855,7 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
           :is-last="index === displayOptions.length - 1"
           :locked="true"
           :active="vote.open"
+          :threshold-reached="getThresholdReached(option)"
           @increment="incrementOption(option.id)"
           @decrement="decrementOption(option.id)"
           @delete="pendingDeleteOptionId = option.id"
@@ -689,8 +888,10 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
               :is-last="index === sortableOptions.length - 1"
               :locked="isReorderingOptions"
               :active="vote.open"
+              :is-winner="winnerIds.has(option.id)"
               @delete="pendingDeleteOptionId = option.id"
               @update-color="(color) => updateOptionColor(option.id, color)"
+              @update-can-win="(canWin) => updateOptionCanWin(option.id, canWin)"
               @move-up="moveOption(index, index - 1)"
               @move-down="moveOption(index, index + 1)"
             />

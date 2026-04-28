@@ -19,7 +19,10 @@ export default defineEventHandler(async (event) => {
   await requireOptionInAdminScope(eventId, voteId, optionId)
 
   const isStructuralChange =
-    data.label !== undefined || data.color !== undefined || data.shortcut !== undefined
+    data.label !== undefined ||
+    data.color !== undefined ||
+    data.shortcut !== undefined ||
+    data.canWin !== undefined
 
   if (vote.open && isStructuralChange) {
     throw createError({
@@ -54,6 +57,7 @@ export default defineEventHandler(async (event) => {
   if (data.color !== undefined) updateData.color = data.color
   if (data.shortcut !== undefined) updateData.shortcut = data.shortcut
   if (data.count !== undefined) updateData.count = data.count
+  if (data.canWin !== undefined) updateData.canWin = data.canWin
 
   if (Object.keys(updateData).length === 0) {
     throw createError({

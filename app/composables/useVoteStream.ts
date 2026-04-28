@@ -11,6 +11,8 @@ export type VoteStreamOption = VoteCountUpdateEvent['options'][number]
 
 export function useVoteStream(voteId?: MaybeRef<string | null>) {
   const options = ref<VoteStreamOption[]>([])
+  const minimumVotes = ref<number | null>(null)
+  const winnerIds = ref<string[]>([])
   const isConnected = ref(false)
   const lastEvent = ref<SSEEvent | null>(null)
   let eventSource: EventSource | null = null
@@ -28,6 +30,10 @@ export function useVoteStream(voteId?: MaybeRef<string | null>) {
     }
   }
 
+  function resetWinnerState() {
+    winnerIds.value = []
+  }
+
   function connect() {
     if (import.meta.server) return
 
@@ -41,6 +47,7 @@ export function useVoteStream(voteId?: MaybeRef<string | null>) {
     eventSource.addEventListener('connected', () => {
       isConnected.value = true
       reconnectDelay = 1000
+      resetWinnerState()
       // Reconnected after a gap — fetch fresh counts so stale data isn't shown
       refetchVoteData()
     })
@@ -51,6 +58,7 @@ export function useVoteStream(voteId?: MaybeRef<string | null>) {
         if (!data || typeof data !== 'object' || !Array.isArray(data.options)) return
         lastEvent.value = data as SSEEvent
         options.value = data.options
+        minimumVotes.value = data.minimumVotes ?? null
       } catch {
         // Malformed event — ignore
       }
@@ -60,7 +68,19 @@ export function useVoteStream(voteId?: MaybeRef<string | null>) {
       try {
         const data = JSON.parse(e.data)
         if (!data || typeof data !== 'object' || typeof data.type !== 'string') return
+        if (data.open === true) resetWinnerState()
         lastEvent.value = data as SSEEvent
+      } catch {
+        // Malformed event — ignore
+      }
+    })
+
+    eventSource.addEventListener('vote-closed', (e) => {
+      try {
+        const data = JSON.parse(e.data)
+        if (!data || typeof data !== 'object') return
+        lastEvent.value = data as SSEEvent
+        winnerIds.value = Array.isArray(data.winnerIds) ? data.winnerIds : []
       } catch {
         // Malformed event — ignore
       }
@@ -97,6 +117,8 @@ export function useVoteStream(voteId?: MaybeRef<string | null>) {
 
   return {
     options: options as Ref<VoteStreamOption[]>,
+    minimumVotes,
+    winnerIds,
     isConnected,
     lastEvent,
     reconnect: () => {

@@ -13,6 +13,8 @@ const props = defineProps<{
   locked?: boolean
   flashing?: boolean
   active?: boolean
+  thresholdReached?: boolean
+  isWinner?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -21,6 +23,7 @@ const emit = defineEmits<{
   delete: []
   setCount: [count: number]
   updateColor: [color: string | null]
+  'update-can-win': [canWin: boolean]
   moveUp: []
   moveDown: []
 }>()
@@ -95,6 +98,7 @@ watch(isEditingCount, async (editing) => {
         ? 'bg-default rounded-xl p-3 shadow-sm'
         : 'bg-default hover:bg-muted/20 rounded-2xl p-4 shadow-sm',
       flashing ? 'bg-primary/8 ring-primary/20 ring-1' : '',
+      thresholdReached && !flashing ? 'bg-green-50 dark:bg-green-950/20' : '',
     ]"
   >
     <!-- Label row -->
@@ -184,7 +188,30 @@ watch(isEditingCount, async (editing) => {
         @click.stop="emit('updateColor', null)"
       />
 
-      <span class="flex-1 text-left text-sm font-medium">{{ option.label }}</span>
+      <div class="flex min-w-0 flex-1 items-center gap-2">
+        <span class="min-w-0 truncate text-left text-base font-medium">{{ option.label }}</span>
+        <UIcon
+          v-if="isWinner"
+          name="i-tabler-trophy"
+          class="size-5 shrink-0 text-amber-500"
+          :aria-label="t('accessibility.winner')"
+        />
+        <span v-else-if="active && !option.canWin" class="text-muted shrink-0 text-sm">
+          {{ t('admin.cannotWin') }}
+        </span>
+        <div v-if="!active" class="ml-auto flex shrink-0 items-center gap-1.5">
+          <USwitch
+            :model-value="option.canWin"
+            size="xs"
+            :disabled="locked"
+            :aria-label="t('admin.toggleCanWin')"
+            @update:model-value="(val: boolean) => emit('update-can-win', val)"
+          />
+          <span class="text-muted text-sm select-none">
+            {{ option.canWin ? t('admin.canWin') : t('admin.cannotWin') }}
+          </span>
+        </div>
+      </div>
 
       <Transition name="vote-controls" mode="out-in">
         <div v-if="canShowVoteControls" key="vote-controls" class="flex items-center gap-1">
@@ -201,7 +228,7 @@ watch(isEditingCount, async (editing) => {
           <button
             v-if="!isEditingCount"
             type="button"
-            class="inline-flex h-9 w-11 items-center justify-center rounded-md bg-transparent font-mono text-sm font-bold tabular-nums transition-colors hover:bg-black/5"
+            class="inline-flex h-9 w-12 items-center justify-center rounded-md bg-transparent font-mono text-base font-bold tabular-nums transition-colors hover:bg-black/5"
             :aria-label="t('localVote.editCount')"
             :title="t('localVote.editCount')"
             @click="startEditingCount"
@@ -212,7 +239,7 @@ watch(isEditingCount, async (editing) => {
             v-else
             ref="countInputElement"
             v-model="countInput"
-            class="border-default bg-default text-default focus:border-primary/40 focus:ring-primary/10 h-9 w-11 rounded-md border text-center font-mono text-sm font-bold tabular-nums outline-none focus:ring-2"
+            class="border-default bg-default text-default focus:border-primary/40 focus:ring-primary/10 h-9 w-12 rounded-md border text-center font-mono text-base font-bold tabular-nums outline-none focus:ring-2"
             type="number"
             min="0"
             inputmode="numeric"
@@ -234,7 +261,7 @@ watch(isEditingCount, async (editing) => {
         <div
           v-else
           key="count-display"
-          class="bg-muted/70 min-w-12 rounded-full px-3 py-1 text-center font-mono text-sm font-bold tabular-nums"
+          class="bg-muted/70 min-w-14 rounded-full px-3 py-1 text-center font-mono text-base font-bold tabular-nums"
         >
           {{ option.count }}
         </div>
@@ -254,6 +281,13 @@ watch(isEditingCount, async (editing) => {
     </div>
 
     <!-- Bar -->
-    <VoteBar :count="option.count" :total="total" :color="option.color ?? defaultColor" />
+    <VoteBar
+      :count="option.count"
+      :total="total"
+      :color="option.color ?? defaultColor"
+      :threshold-reached="thresholdReached"
+      :is-winner="isWinner"
+      :tall="true"
+    />
   </div>
 </template>

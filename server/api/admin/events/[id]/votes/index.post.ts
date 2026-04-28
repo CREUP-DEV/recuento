@@ -32,6 +32,8 @@ export default defineEventHandler(async (event) => {
       name: data.name,
       visible: data.visible,
       order: orderRow?.nextOrder ?? 0,
+      minimumVotes: data.minimumVotes ?? null,
+      maxWinners: data.maxWinners ?? null,
     })
     .returning()
 

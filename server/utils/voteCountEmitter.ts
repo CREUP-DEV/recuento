@@ -19,10 +19,12 @@ export function emitVoteCountUpdate(voteId: string): void {
       const rows = await db
         .select({
           eventId: votes.eventId,
+          minimumVotes: votes.minimumVotes,
           optionId: voteOptions.id,
           label: voteOptions.label,
           color: voteOptions.color,
           count: voteOptions.count,
+          canWin: voteOptions.canWin,
         })
         .from(votes)
         .innerJoin(events, eq(events.id, votes.eventId))
@@ -33,6 +35,7 @@ export function emitVoteCountUpdate(voteId: string): void {
       if (rows.length === 0) return
 
       const eventId = rows[0]!.eventId
+      const minimumVotes = rows[0]!.minimumVotes ?? null
       const options = rows
         .filter((r) => r.optionId !== null)
         .map((r) => ({
@@ -40,9 +43,11 @@ export function emitVoteCountUpdate(voteId: string): void {
           label: r.label!,
           color: r.color ?? null,
           count: r.count!,
+          canWin: r.canWin ?? true,
+          thresholdReached: minimumVotes !== null && (r.canWin ?? true) && r.count! >= minimumVotes,
         }))
 
-      emitVoteUpdate({ type: 'vote-count-update', voteId, eventId, options })
+      emitVoteUpdate({ type: 'vote-count-update', voteId, eventId, minimumVotes, options })
     }, 50)
   )
 }

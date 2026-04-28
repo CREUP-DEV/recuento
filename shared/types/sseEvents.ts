@@ -2,11 +2,14 @@ export interface VoteCountUpdateEvent {
   type: 'vote-count-update'
   voteId: string
   eventId: string
+  minimumVotes: number | null
   options: Array<{
     id: string
     label: string
     color: string | null
     count: number
+    canWin: boolean
+    thresholdReached: boolean
   }>
 }
 
@@ -19,4 +22,14 @@ export interface VoteStatusChangeEvent {
   endedAt: string | null
 }
 
-export type SSEEvent = VoteCountUpdateEvent | VoteStatusChangeEvent
+export interface VoteClosedEvent {
+  type: 'vote-closed'
+  voteId: string
+  eventId: string
+  winnerIds: string[]
+  minimumVotes: number | null
+  maxWinners: number | null
+  confettiEnabled: boolean
+}
+
+export type SSEEvent = VoteCountUpdateEvent | VoteStatusChangeEvent | VoteClosedEvent

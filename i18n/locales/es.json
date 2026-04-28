@@ -37,7 +37,14 @@
     "viewVote": "Ver votación en directo",
     "option": "Opción",
     "count": "Votos",
-    "percentage": "Porcentaje"
+    "percentage": "Porcentaje",
+    "minimumVotesInfo": "Mayoría mínima: {count} votos",
+    "thresholdReached": "Mayoría mínima alcanzada",
+    "winner": "Ganador/a",
+    "winners": "Ganadores/as",
+    "noWinner": "Sin ganador/a",
+    "canWinLabel": "Computa para resultado",
+    "cannotWinLabel": "No computa para resultado"
   },
   "voteOptions": {
     "suggestionLabel": "Sugerencia:",
@@ -82,7 +89,11 @@
     "copySuccess": "Resultados copiados",
     "copyError": "No se pudieron copiar los resultados",
     "totalEmitted": "Total de votos emitidos",
-    "incrementOption": "Sumar voto a {option}"
+    "incrementOption": "Sumar voto a {option}",
+    "minimumVotes": "Mayoría mínima",
+    "minimumVotesPlaceholder": "Sin mayoría mínima",
+    "maxWinners": "Máximo de ganadores/as",
+    "maxWinnersPlaceholder": "Sin límite"
   },
   "admin": {
     "dashboard": "Panel",
@@ -146,6 +157,19 @@
     "copyError": "No se pudieron copiar los resultados",
     "totalEmitted": "Total de votos emitidos",
     "incrementOption": "Sumar voto a {option}",
+    "voteSettings": "Configuración de resultado",
+    "minimumVotes": "Mayoría mínima (votos)",
+    "minimumVotesPlaceholder": "Sin mayoría mínima",
+    "minimumVotesHelp": "Mínimo de votos para declarar ganadora una opción. Opcional.",
+    "maxWinners": "Máximo de ganadores/as",
+    "maxWinnersPlaceholder": "Sin límite",
+    "maxWinnersHelp": "Número máximo de opciones que pueden ganar. Opcional.",
+    "toggleCanWin": "Incluir/excluir del cómputo de resultado",
+    "canWin": "Cuenta",
+    "cannotWin": "No cuenta",
+    "canWinHelp": "Esta configuración solo aplica a las opciones que cuentan para el resultado.",
+    "confettiEnabled": "Confeti al cerrar",
+    "confettiEnabledHelp": "Lanza confeti al anunciar los resultados.",
     "label": "Etiqueta",
     "color": "Color",
     "count": "Recuento",
@@ -180,7 +204,10 @@
       "visibilityError": "Error al cambiar visibilidad",
       "eventCreated": "Evento creado",
       "eventCreateError": "Error al crear el evento",
-      "fieldsRequired": "Todos los campos son obligatorios"
+      "fieldsRequired": "Todos los campos son obligatorios",
+      "voteSettingsUpdated": "Configuración de votación actualizada",
+      "voteSettingsError": "Error al actualizar la configuración",
+      "canWinError": "Error al actualizar la opción"
     }
   },
   "auth": {
@@ -199,7 +226,10 @@
     "voteChart": "Gráfico de votos por opción",
     "changeLanguage": "Cambiar idioma",
     "collapseSidebar": "Contraer menú lateral",
-    "expandSidebar": "Expandir menú lateral"
+    "expandSidebar": "Expandir menú lateral",
+    "winner": "Ganador/a",
+    "thresholdReached": "Mayoría mínima alcanzada",
+    "doesNotCount": "No computa"
   },
   "common": {
     "loading": "Cargando…",

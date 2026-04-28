@@ -1,0 +1,1 @@
+ALTER TABLE "votes" ADD COLUMN "confetti_enabled" boolean DEFAULT true NOT NULL;

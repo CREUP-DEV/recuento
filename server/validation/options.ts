@@ -21,6 +21,7 @@ export const createOptionSchema = z.object({
   label: z.string().min(1).max(500),
   color: colorField,
   shortcut: shortcutField,
+  canWin: z.boolean().optional().default(true),
 })
 
 export const updateOptionSchema = z.object({
@@ -28,4 +29,5 @@ export const updateOptionSchema = z.object({
   color: colorField,
   shortcut: shortcutField,
   count: z.number().int().min(0).max(999_999).optional(),
+  canWin: z.boolean().optional(),
 })

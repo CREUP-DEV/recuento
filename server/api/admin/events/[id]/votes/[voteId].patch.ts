@@ -1,14 +1,9 @@
-import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db } from '#db'
 import { votes } from '#db/schema'
 import { requireVoteInAdminScope } from '#server-utils/adminVoteScope'
-
-const updateVoteSchema = z.object({
-  name: z.string().min(1).max(500).optional(),
-  visible: z.boolean().optional(),
-})
+import { updateVoteSchema } from '#validation/votes'
 
 export default defineEventHandler(async (event) => {
   const eventId = getRouterParam(event, 'id')
@@ -29,9 +24,19 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  if (currentVote.open && (data.minimumVotes !== undefined || data.maxWinners !== undefined)) {
+    throw createError({
+      statusCode: 409,
+      message: 'No se puede modificar la configuración de resultado con la votación abierta.',
+    })
+  }
+
   const updateData: Record<string, unknown> = {}
   if (data.name !== undefined) updateData.name = data.name
   if (data.visible !== undefined) updateData.visible = data.visible
+  if (data.minimumVotes !== undefined) updateData.minimumVotes = data.minimumVotes
+  if (data.maxWinners !== undefined) updateData.maxWinners = data.maxWinners
+  if (data.confettiEnabled !== undefined) updateData.confettiEnabled = data.confettiEnabled
 
   if (Object.keys(updateData).length === 0) {
     throw createError({

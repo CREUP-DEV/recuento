@@ -53,6 +53,9 @@ export const votes = pgTable(
     startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
     endedAt: timestamp('ended_at', { withTimezone: true, mode: 'date' }),
     order: integer('order').default(0).notNull(),
+    minimumVotes: integer('minimum_votes'),
+    maxWinners: integer('max_winners'),
+    confettiEnabled: boolean('confetti_enabled').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
@@ -66,6 +69,14 @@ export const votes = pgTable(
     uniqueIndex('idx_votes_single_open_global')
       .on(table.open)
       .where(sql`${table.open} IS TRUE`),
+    check(
+      'votes_minimum_votes_positive',
+      sql`${table.minimumVotes} IS NULL OR ${table.minimumVotes} > 0`
+    ),
+    check(
+      'votes_max_winners_positive',
+      sql`${table.maxWinners} IS NULL OR ${table.maxWinners} > 0`
+    ),
   ]
 )
 
@@ -83,6 +94,7 @@ export const voteOptions = pgTable(
     count: integer('count').default(0).notNull(),
     order: integer('order').default(0).notNull(),
     shortcut: text('shortcut'),
+    canWin: boolean('can_win').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
       .defaultNow()

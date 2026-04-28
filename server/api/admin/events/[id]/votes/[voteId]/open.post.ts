@@ -76,11 +76,14 @@ export default defineEventHandler(async (event) => {
     type: 'vote-count-update',
     voteId: updated.id,
     eventId: updated.eventId,
+    minimumVotes: updated.minimumVotes ?? null,
     options: options.map((o) => ({
       id: o.id,
       label: o.label,
       color: o.color,
       count: o.count,
+      canWin: o.canWin,
+      thresholdReached: false,
     })),
   })
 
