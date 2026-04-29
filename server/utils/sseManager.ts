@@ -1,15 +1,20 @@
 import { EventEmitter } from 'node:events'
 import type {
-  SSEEvent,
   VoteCountUpdateEvent,
   VoteStatusChangeEvent,
   VoteClosedEvent,
 } from '~~/shared/types/sseEvents'
 
-const emitter = new EventEmitter()
-emitter.setMaxListeners(500)
+export interface SerializedSSEEvent {
+  type: string
+  voteId: string
+  json: string
+}
 
-// ─── Per-IP connection tracking ───────────────────────────────────────────────
+const emitter = new EventEmitter()
+emitter.setMaxListeners(0)
+
+// ─── Per-IP connection tracking ──────────────────────────────────────���────────
 
 const MAX_CONNECTIONS_PER_IP = 10
 const connectionsByIp = new Map<string, number>()
@@ -28,18 +33,18 @@ export function releaseSSEConnection(ip: string): void {
 }
 
 export function emitVoteUpdate(data: VoteCountUpdateEvent) {
-  emitter.emit('sse', data)
+  emitter.emit('sse', { type: data.type, voteId: data.voteId, json: JSON.stringify(data) })
 }
 
 export function emitVoteStatusChange(data: VoteStatusChangeEvent) {
-  emitter.emit('sse', data)
+  emitter.emit('sse', { type: data.type, voteId: data.voteId, json: JSON.stringify(data) })
 }
 
 export function emitVoteClosed(data: VoteClosedEvent) {
-  emitter.emit('sse', data)
+  emitter.emit('sse', { type: data.type, voteId: data.voteId, json: JSON.stringify(data) })
 }
 
-export function onSSEEvent(handler: (data: SSEEvent) => void) {
+export function onSSEEvent(handler: (data: SerializedSSEEvent) => void) {
   emitter.on('sse', handler)
   return () => {
     emitter.off('sse', handler)

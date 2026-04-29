@@ -20,6 +20,8 @@ export function emitVoteCountUpdate(voteId: string): void {
         .select({
           eventId: votes.eventId,
           minimumVotes: votes.minimumVotes,
+          maxWinners: votes.maxWinners,
+          confettiEnabled: votes.confettiEnabled,
           optionId: voteOptions.id,
           label: voteOptions.label,
           color: voteOptions.color,
@@ -36,6 +38,8 @@ export function emitVoteCountUpdate(voteId: string): void {
 
       const eventId = rows[0]!.eventId
       const minimumVotes = rows[0]!.minimumVotes ?? null
+      const maxWinners = rows[0]!.maxWinners ?? null
+      const confettiEnabled = rows[0]!.confettiEnabled
       const options = rows
         .filter((r) => r.optionId !== null)
         .map((r) => ({
@@ -47,7 +51,15 @@ export function emitVoteCountUpdate(voteId: string): void {
           thresholdReached: minimumVotes !== null && (r.canWin ?? true) && r.count! >= minimumVotes,
         }))
 
-      emitVoteUpdate({ type: 'vote-count-update', voteId, eventId, minimumVotes, options })
+      emitVoteUpdate({
+        type: 'vote-count-update',
+        voteId,
+        eventId,
+        minimumVotes,
+        maxWinners,
+        confettiEnabled,
+        options,
+      })
     }, 50)
   )
 }

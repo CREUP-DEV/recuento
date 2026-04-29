@@ -139,7 +139,7 @@ Smooth number animation using `requestAnimationFrame` with ease-out cubic easing
 
 ### useActiveVote
 
-Polls `/api/votes/active` every 5 seconds to detect open/closed votes.
+Module-level singleton SSE connection. Shares one connection across all consumers on the same tab. Calls `refresh()` on reconnect and on `vote-status-change` events.
 
 ### useAuth
 
@@ -173,7 +173,7 @@ Never redirect from a modal form. Use `refresh()` instead.
 - Max 5 MB; accepted formats: jpg, jpeg, png, gif, webp, avif.
 - Auto-resized to 1400×400px and converted to WebP.
 - Stored in `public/banners/`.
-- In production, persist banners via `APP_BANNERS_DIR` mounted to `/app/.output/public/banners`.
+- In production, persist banners via `APP_BANNERS_DIR` (for example `/app/data/banners`) mounted to the same container path.
 
 ---
 

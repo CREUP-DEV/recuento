@@ -5,15 +5,9 @@ import { isAdminEmailAuthorized, normalizeAdminEmail } from './adminAccess'
 
 export type AdminSession = Awaited<ReturnType<typeof auth.api.getSession>>
 
-export interface AdminAuthEventContext {
-  adminSession?: AdminSession
-}
-
 export async function requireAuth(event: H3Event) {
-  const context = event.context as AdminAuthEventContext
-
-  if (context.adminSession) {
-    return context.adminSession
+  if (event.context.adminSession) {
+    return event.context.adminSession
   }
 
   const session = await auth.api.getSession({
@@ -35,7 +29,7 @@ export async function requireAuth(event: H3Event) {
     })
   }
 
-  context.adminSession = session
+  event.context.adminSession = session
 
   return session
 }

@@ -40,7 +40,11 @@ export const updateEventSchema = z
     startDate: dateString.optional(),
     endDate: dateString.optional(),
     visible: z.boolean().optional(),
-    banner: z.string().nullable().optional(),
+    banner: z
+      .string()
+      .regex(/^\/banners\/[\w-]+\.webp$/, 'Ruta de banner no válida')
+      .nullable()
+      .optional(),
   })
   .refine(
     (data) => {

@@ -1,6 +1,9 @@
 import { and, eq } from 'drizzle-orm'
 import { db } from '#db'
 import { events, votes } from '#db/schema'
+import { deleteBannerFile } from '#server-utils/adminImageUpload'
+import { pickDefined } from '#server-utils/pickDefined'
+import { emitVoteStatusChange } from '#server-utils/sseManager'
 import { updateEventSchema, validateEventDateRange } from '#validation/events'
 
 export default defineEventHandler(async (event) => {
@@ -40,12 +43,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  const updateData: Record<string, unknown> = {}
-  if (data.name !== undefined) updateData.name = data.name
-  if (data.startDate !== undefined) updateData.startDate = data.startDate
-  if (data.endDate !== undefined) updateData.endDate = data.endDate
-  if (data.visible !== undefined) updateData.visible = data.visible
-  if (data.banner !== undefined) updateData.banner = data.banner
+  const updateData = pickDefined(data, ['name', 'startDate', 'endDate', 'visible', 'banner'])
 
   if (Object.keys(updateData).length === 0) {
     throw createError({
@@ -55,6 +53,35 @@ export default defineEventHandler(async (event) => {
   }
 
   const [updated] = await db.update(events).set(updateData).where(eq(events.id, id)).returning()
+
+  if (data.banner === null && existing.banner) {
+    await deleteBannerFile(existing.banner)
+  }
+
+  if (data.visible !== undefined) {
+    const eventVotes = await db
+      .select({
+        id: votes.id,
+        open: votes.open,
+        visible: votes.visible,
+        startedAt: votes.startedAt,
+        endedAt: votes.endedAt,
+      })
+      .from(votes)
+      .where(eq(votes.eventId, id))
+
+    for (const v of eventVotes) {
+      emitVoteStatusChange({
+        type: 'vote-status-change',
+        voteId: v.id,
+        eventId: id,
+        open: v.open,
+        visible: data.visible && v.visible,
+        startedAt: v.startedAt?.toISOString() ?? null,
+        endedAt: v.endedAt?.toISOString() ?? null,
+      })
+    }
+  }
 
   return { data: updated }
 })

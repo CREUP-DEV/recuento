@@ -46,6 +46,19 @@ const settingsMaxWinners = ref<string>(
   state.value.maxWinners !== null ? String(state.value.maxWinners) : ''
 )
 
+watch(
+  () => state.value.minimumVotes,
+  (val) => {
+    settingsMinimumVotes.value = val !== null ? String(val) : ''
+  }
+)
+watch(
+  () => state.value.maxWinners,
+  (val) => {
+    settingsMaxWinners.value = val !== null ? String(val) : ''
+  }
+)
+
 function applyMinimumVotes(raw: string | number) {
   const str = String(raw)
   const parsed = str.trim() === '' ? null : parseInt(str, 10)
@@ -151,10 +164,20 @@ function triggerRedo() {
 const localConfettiEnabled = useLocalStorage('recuento-local-confetti', true)
 const settingsOpen = ref(true)
 
+type LocalVotePhase = 'setup' | 'voting' | 'results' | 'closedEmpty'
+const phase = computed((): LocalVotePhase => {
+  if (state.value.open) return 'voting'
+  if (totalVotes.value > 0) return 'results'
+  if (state.value.options.length > 0) return 'closedEmpty'
+  return 'setup'
+})
+
 watch(
   () => state.value.open,
   (open) => {
-    if (open) settingsOpen.value = false
+    if (open) {
+      settingsOpen.value = false
+    }
   }
 )
 
@@ -288,7 +311,7 @@ async function copyResults() {
     </div>
 
     <!-- Vote settings (accordion) -->
-    <div class="border-default mb-6 rounded-xl border">
+    <div v-if="phase !== 'results'" class="border-default mb-6 rounded-xl border">
       <button
         type="button"
         class="flex w-full items-center justify-between px-4 py-3 text-left"
@@ -310,8 +333,8 @@ async function copyResults() {
       >
         <div class="overflow-hidden">
           <div class="px-4 pb-4" :class="state.open ? 'pointer-events-none opacity-60' : ''">
-            <div class="flex flex-wrap gap-4">
-              <div class="flex min-w-40 flex-1 flex-col gap-1">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div class="flex flex-col gap-1">
                 <label class="text-muted text-sm font-medium" for="local-min-votes">
                   {{ t('localVote.minimumVotes') }}
                 </label>
@@ -326,7 +349,7 @@ async function copyResults() {
                   @keydown.enter.prevent="applyMinimumVotes(settingsMinimumVotes)"
                 />
               </div>
-              <div class="flex min-w-40 flex-1 flex-col gap-1">
+              <div class="flex flex-col gap-1">
                 <label class="text-muted text-sm font-medium" for="local-max-winners">
                   {{ t('localVote.maxWinners') }}
                 </label>
@@ -355,9 +378,9 @@ async function copyResults() {
       </div>
     </div>
 
-    <!-- Winners (post-close) -->
+    <!-- Winners (results phase only) -->
     <div
-      v-if="!state.open && localWinners.size > 0"
+      v-if="phase === 'results' && localWinners.size > 0"
       class="border-default mb-6 rounded-xl border p-4"
     >
       <p class="text-muted mb-2 text-xs font-semibold tracking-wide uppercase">
@@ -391,14 +414,14 @@ async function copyResults() {
           tag="div"
           :class="state.open ? 'space-y-2' : 'space-y-3'"
           handle=".drag-handle"
-          :disabled="state.open"
+          :disabled="state.open || phase === 'results'"
           drag-class="vote-dragging"
           ghost-class="vote-drag-ghost"
           animation="180"
           @change="onOptionsReorder"
         >
           <template #item="{ element: option, index }">
-            <LocalVoteOptionBar
+            <VoteOptionRow
               :option="option"
               :index="index"
               :total="totalVotes"
@@ -409,6 +432,8 @@ async function copyResults() {
               :flashing="flashingOptionId === option.id"
               :threshold-reached="getThresholdReached(option.id, option.count, option.canWin)"
               :is-winner="localWinners.has(option.id)"
+              :results-mode="phase === 'results'"
+              size="md"
               @delete="confirmDeleteOption(option.id)"
               @increment="incrementOption(option.id)"
               @decrement="decrementOption(option.id)"
@@ -427,7 +452,10 @@ async function copyResults() {
       </div>
 
       <!-- Add option -->
-      <div v-if="!state.open" class="border-default relative z-10 border-t p-4">
+      <div
+        v-if="phase === 'setup' || phase === 'closedEmpty'"
+        class="border-default relative z-10 border-t p-4"
+      >
         <div class="flex gap-2">
           <UInput
             v-model="newOptionLabel"
@@ -465,7 +493,9 @@ async function copyResults() {
 
     <!-- Actions -->
     <div class="flex flex-wrap items-center gap-3">
+      <!-- Open/close toggle — always visible except in results (read-only) -->
       <UButton
+        v-if="phase !== 'results'"
         :icon="state.open ? 'i-tabler-player-stop' : 'i-tabler-player-play'"
         :color="state.open ? 'error' : 'success'"
         variant="subtle"
@@ -475,8 +505,9 @@ async function copyResults() {
         {{ state.open ? t('localVote.close') : t('localVote.open') }}
       </UButton>
 
+      <!-- Undo / Redo — only during voting -->
       <Transition name="vote-controls">
-        <div v-if="state.open" class="hidden md:inline-flex">
+        <div v-if="phase === 'voting'" class="hidden md:inline-flex">
           <UButton
             icon="i-tabler-arrow-back-up"
             variant="subtle"
@@ -491,7 +522,7 @@ async function copyResults() {
       </Transition>
 
       <Transition name="vote-controls">
-        <div v-if="state.open" class="hidden md:inline-flex">
+        <div v-if="phase === 'voting'" class="hidden md:inline-flex">
           <UButton
             icon="i-tabler-arrow-forward-up"
             variant="subtle"
@@ -505,38 +536,66 @@ async function copyResults() {
         </div>
       </Transition>
 
-      <UButton
-        icon="i-tabler-rotate"
-        variant="subtle"
-        color="neutral"
-        :disabled="totalVotes === 0"
-        @click="showResetConfirm = true"
-      >
-        {{ t('localVote.resetCounts') }}
-      </UButton>
+      <!-- Results phase actions -->
+      <template v-if="phase === 'results'">
+        <UButton icon="i-tabler-copy" variant="subtle" color="neutral" @click="copyResults">
+          {{ t('localVote.copyResults') }}
+        </UButton>
 
-      <UButton
-        icon="i-tabler-copy"
-        variant="subtle"
-        color="neutral"
-        :disabled="state.options.length === 0"
-        @click="copyResults"
-      >
-        {{ t('localVote.copyResults') }}
-      </UButton>
+        <UButton
+          icon="i-tabler-rotate"
+          variant="subtle"
+          color="neutral"
+          @click="showResetConfirm = true"
+        >
+          {{ t('localVote.resetCounts') }}
+        </UButton>
 
-      <UButton
-        icon="i-tabler-trash"
-        variant="subtle"
-        color="error"
-        @click="showClearConfirm = true"
-      >
-        {{ t('localVote.clearAll') }}
-      </UButton>
+        <UButton
+          icon="i-tabler-trash"
+          variant="subtle"
+          color="error"
+          @click="showClearConfirm = true"
+        >
+          {{ t('localVote.clearAll') }}
+        </UButton>
+      </template>
 
-      <!-- Keyboard hint -->
+      <!-- Setup / closedEmpty actions -->
+      <template v-if="phase === 'setup' || phase === 'closedEmpty'">
+        <UButton
+          icon="i-tabler-rotate"
+          variant="subtle"
+          color="neutral"
+          :disabled="totalVotes === 0"
+          @click="showResetConfirm = true"
+        >
+          {{ t('localVote.resetCounts') }}
+        </UButton>
+
+        <UButton
+          icon="i-tabler-copy"
+          variant="subtle"
+          color="neutral"
+          :disabled="state.options.length === 0"
+          @click="copyResults"
+        >
+          {{ t('localVote.copyResults') }}
+        </UButton>
+
+        <UButton
+          icon="i-tabler-trash"
+          variant="subtle"
+          color="error"
+          @click="showClearConfirm = true"
+        >
+          {{ t('localVote.clearAll') }}
+        </UButton>
+      </template>
+
+      <!-- Keyboard hint — only during voting -->
       <span
-        v-if="state.open && activeShortcuts.length > 0"
+        v-if="phase === 'voting' && activeShortcuts.length > 0"
         class="text-muted ml-auto hidden items-center gap-4 text-sm md:flex"
       >
         <span class="flex items-center gap-1.5">

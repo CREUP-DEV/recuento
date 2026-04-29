@@ -3,6 +3,9 @@ import type { SSEEvent, VoteCountUpdateEvent } from '~~/shared/types/sseEvents'
 
 export interface VoteStreamVoteResponse {
   data: {
+    minimumVotes: number | null
+    maxWinners: number | null
+    confettiEnabled: boolean
     options: VoteStreamOption[]
   }
 }
@@ -12,12 +15,11 @@ export type VoteStreamOption = VoteCountUpdateEvent['options'][number]
 export function useVoteStream(voteId?: MaybeRef<string | null>) {
   const options = ref<VoteStreamOption[]>([])
   const minimumVotes = ref<number | null>(null)
+  const maxWinners = ref<number | null>(null)
+  const confettiEnabled = ref(true)
   const winnerIds = ref<string[]>([])
-  const isConnected = ref(false)
   const lastEvent = ref<SSEEvent | null>(null)
-  let eventSource: EventSource | null = null
-  let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
-  let reconnectDelay = 1000
+  const isHidden = ref(false)
 
   async function refetchVoteData() {
     const voteIdValue = unref(voteId)
@@ -25,105 +27,60 @@ export function useVoteStream(voteId?: MaybeRef<string | null>) {
     try {
       const res = await $fetch<VoteStreamVoteResponse>(`/api/votes/${voteIdValue}`)
       options.value = res.data.options
+      minimumVotes.value = res.data.minimumVotes ?? null
+      maxWinners.value = res.data.maxWinners ?? null
+      confettiEnabled.value = res.data.confettiEnabled
     } catch {
       // Best-effort — SSE will sync on next event
     }
   }
 
-  function resetWinnerState() {
-    winnerIds.value = []
-  }
-
-  function connect() {
-    if (import.meta.server) return
-
-    const voteIdValue = unref(voteId)
-    const url = voteIdValue
-      ? `/api/sse/votes?voteId=${encodeURIComponent(voteIdValue)}`
-      : '/api/sse/votes'
-
-    eventSource = new EventSource(url)
-
-    eventSource.addEventListener('connected', () => {
-      isConnected.value = true
-      reconnectDelay = 1000
-      resetWinnerState()
-      // Reconnected after a gap — fetch fresh counts so stale data isn't shown
-      refetchVoteData()
-    })
-
-    eventSource.addEventListener('vote-count-update', (e) => {
-      try {
-        const data = JSON.parse(e.data)
-        if (!data || typeof data !== 'object' || !Array.isArray(data.options)) return
-        lastEvent.value = data as SSEEvent
-        options.value = data.options
-        minimumVotes.value = data.minimumVotes ?? null
-      } catch {
-        // Malformed event — ignore
+  const { isConnected, reconnect } = useSSEConnection({
+    url: () => {
+      const voteIdValue = unref(voteId)
+      return voteIdValue
+        ? `/api/sse/votes?voteId=${encodeURIComponent(voteIdValue)}`
+        : '/api/sse/votes'
+    },
+    onEvent(type, data) {
+      if (type === 'connected') {
+        winnerIds.value = []
+        refetchVoteData()
+        return
       }
-    })
 
-    eventSource.addEventListener('vote-status-change', (e) => {
-      try {
-        const data = JSON.parse(e.data)
-        if (!data || typeof data !== 'object' || typeof data.type !== 'string') return
-        if (data.open === true) resetWinnerState()
+      if (!data || typeof data !== 'object') return
+
+      if (type === 'vote-count-update') {
+        const d = data as VoteCountUpdateEvent
+        if (!Array.isArray(d.options)) return
+        lastEvent.value = d
+        options.value = d.options
+        minimumVotes.value = d.minimumVotes ?? null
+        maxWinners.value = d.maxWinners ?? null
+        confettiEnabled.value = d.confettiEnabled ?? true
+      } else if (type === 'vote-status-change') {
+        const d = data as SSEEvent & { open?: boolean; visible?: boolean }
+        if (d.open === true) winnerIds.value = []
+        if (d.visible === false) isHidden.value = true
         lastEvent.value = data as SSEEvent
-      } catch {
-        // Malformed event — ignore
-      }
-    })
-
-    eventSource.addEventListener('vote-closed', (e) => {
-      try {
-        const data = JSON.parse(e.data)
-        if (!data || typeof data !== 'object') return
+      } else if (type === 'vote-closed') {
+        const d = data as SSEEvent & { winnerIds?: unknown }
         lastEvent.value = data as SSEEvent
-        winnerIds.value = Array.isArray(data.winnerIds) ? data.winnerIds : []
-      } catch {
-        // Malformed event — ignore
+        winnerIds.value = Array.isArray(d.winnerIds) ? (d.winnerIds as string[]) : []
       }
-    })
-
-    eventSource.onerror = () => {
-      isConnected.value = false
-      eventSource?.close()
-      eventSource = null
-
-      // Jitter ±25% on the delay to spread reconnect attempts after server restart
-      const jitter = 0.75 + Math.random() * 0.5
-      reconnectTimeout = setTimeout(() => {
-        reconnectDelay = Math.min(reconnectDelay * 2, 30_000)
-        connect()
-      }, reconnectDelay * jitter)
-    }
-  }
-
-  function disconnect() {
-    if (reconnectTimeout) {
-      clearTimeout(reconnectTimeout)
-      reconnectTimeout = null
-    }
-    if (eventSource) {
-      eventSource.close()
-      eventSource = null
-    }
-    isConnected.value = false
-  }
-
-  onMounted(() => connect())
-  onBeforeUnmount(() => disconnect())
+    },
+  })
 
   return {
     options: options as Ref<VoteStreamOption[]>,
     minimumVotes,
+    maxWinners,
+    confettiEnabled,
     winnerIds,
     isConnected,
+    isHidden,
     lastEvent,
-    reconnect: () => {
-      disconnect()
-      connect()
-    },
+    reconnect,
   }
 }

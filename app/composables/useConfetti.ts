@@ -1,6 +1,7 @@
 export function useConfetti() {
   async function launchConfetti() {
     if (import.meta.server) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const { default: confetti } = await import('canvas-confetti')
     confetti({ particleCount: 160, spread: 80, origin: { y: 0.55 } })
     setTimeout(() => confetti({ particleCount: 80, spread: 120, origin: { y: 0.5, x: 0.15 } }), 200)

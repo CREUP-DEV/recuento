@@ -2,6 +2,7 @@ import { and, eq, exists, sql } from 'drizzle-orm'
 import { db } from '#db'
 import { events, votes, voteOptions } from '#db/schema'
 import { emitVoteCountUpdate } from '#server-utils/voteCountEmitter'
+import { isDuplicateRequest } from '#server-utils/requestDeduplication'
 
 export default defineEventHandler(async (event) => {
   const eventId = getRouterParam(event, 'id')
@@ -9,6 +10,11 @@ export default defineEventHandler(async (event) => {
   const voteId = getRouterParam(event, 'voteId')
   if (!eventId || !optionId || !voteId) {
     throw createError({ statusCode: 400, message: 'IDs requeridos' })
+  }
+
+  const nonce = getRequestHeader(event, 'x-request-id')
+  if (nonce && isDuplicateRequest(voteId, nonce)) {
+    return { data: null, deduplicated: true }
   }
 
   const [updated] = await db

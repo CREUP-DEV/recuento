@@ -1,9 +1,12 @@
+import type { SSEEvent } from '~~/shared/types/sseEvents'
+
 export interface ActiveVoteData {
   id: string
   name: string
   eventId: string
   minimumVotes: number | null
   maxWinners: number | null
+  confettiEnabled: boolean
   event?: {
     id: string
     name: string
@@ -17,18 +20,16 @@ export interface ActiveVoteData {
   }>
 }
 
-// Module-level singletons for the SSE connection.
+// Module-level singleton for the SSE connection.
 // Only accessed inside onMounted (client-only), so safe in SSR environments.
-let _sse: EventSource | null = null
+let _sseClient: ReturnType<typeof makeSSEClient> | null = null
 let _subscribers = 0
-let _reconnectDelay = 1_000
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
-    _sse?.close()
-    _sse = null
+    _sseClient?.disconnect()
+    _sseClient = null
     _subscribers = 0
-    _reconnectDelay = 1_000
   })
 }
 
@@ -49,76 +50,49 @@ export function useActiveVote() {
     }
   }
 
-  function connectSSE() {
-    if (_sse) return
-    _sse = new EventSource('/api/sse/votes')
-
-    _sse.addEventListener('connected', () => {
-      _reconnectDelay = 1_000
-      winnerIds.value = []
-      refresh()
-    })
-
-    _sse.addEventListener('vote-count-update', (e) => {
-      try {
-        const data = JSON.parse((e as MessageEvent).data)
-        if (!activeVote.value || data.voteId !== activeVote.value.id) return
-        activeVote.value = {
-          ...activeVote.value,
-          minimumVotes: data.minimumVotes ?? null,
-          options: data.options,
-        }
-      } catch {
-        // Malformed event — ignore
-      }
-    })
-
-    _sse.addEventListener('vote-status-change', (e) => {
-      try {
-        const data = JSON.parse((e as MessageEvent).data)
-        if (data?.open === true) winnerIds.value = []
-        refresh()
-      } catch {
-        refresh()
-      }
-    })
-
-    _sse.addEventListener('vote-closed', (e) => {
-      try {
-        const data = JSON.parse((e as MessageEvent).data)
-        if (!activeVote.value || data.voteId !== activeVote.value.id) return
-        winnerIds.value = Array.isArray(data.winnerIds) ? data.winnerIds : []
-      } catch {
-        // Malformed event — ignore
-      }
-    })
-
-    _sse.onerror = () => {
-      _sse?.close()
-      _sse = null
-      if (_subscribers > 0) {
-        const jitter = 0.75 + Math.random() * 0.5
-        setTimeout(() => {
-          _reconnectDelay = Math.min(_reconnectDelay * 2, 30_000)
-          if (_subscribers > 0) connectSSE()
-        }, _reconnectDelay * jitter)
-      }
-    }
-  }
-
   onMounted(() => {
     _subscribers++
     if (_subscribers === 1) {
       refresh()
-      connectSSE()
+
+      _sseClient = makeSSEClient({
+        url: '/api/sse/votes',
+        onEvent(type, data) {
+          if (!data || typeof data !== 'object') return
+          const d = data as SSEEvent & Record<string, unknown>
+
+          if (type === 'connected') {
+            winnerIds.value = []
+            refresh()
+          } else if (type === 'vote-count-update') {
+            if (!activeVote.value || d.voteId !== activeVote.value.id) return
+            if (!Array.isArray(d.options)) return
+            activeVote.value = {
+              ...activeVote.value,
+              minimumVotes: (d.minimumVotes as number | null) ?? null,
+              maxWinners: (d.maxWinners as number | null) ?? null,
+              confettiEnabled: (d.confettiEnabled as boolean) ?? true,
+              options: d.options as ActiveVoteData['options'],
+            }
+          } else if (type === 'vote-status-change') {
+            if ((d.open as boolean) === true) winnerIds.value = []
+            refresh()
+          } else if (type === 'vote-closed') {
+            if (!activeVote.value || d.voteId !== activeVote.value.id) return
+            winnerIds.value = Array.isArray(d.winnerIds) ? (d.winnerIds as string[]) : []
+          }
+        },
+      })
+
+      _sseClient.connect()
     }
   })
 
   onBeforeUnmount(() => {
     _subscribers--
     if (_subscribers === 0) {
-      _sse?.close()
-      _sse = null
+      _sseClient?.disconnect()
+      _sseClient = null
     }
   })
 

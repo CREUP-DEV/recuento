@@ -1,6 +1,6 @@
 import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'node:path'
-import { getOptionalConfigUrl } from './shared/utils/config'
+import { getOptionalConfigString, getOptionalConfigUrl } from './shared/utils/config'
 
 const isDev = process.env.NODE_ENV !== 'production'
 
@@ -8,6 +8,7 @@ const siteUrl =
   getOptionalConfigUrl(process.env.NUXT_SITE_URL, 'NUXT_SITE_URL') ?? 'http://localhost:3000'
 const umamiHost = getOptionalConfigUrl(process.env.NUXT_UMAMI_HOST, 'NUXT_UMAMI_HOST')
 const umamiOrigin = umamiHost ? new URL(umamiHost).origin : null
+const cspReportUri = getOptionalConfigString(process.env.NUXT_CSP_REPORT_URI)
 const adminAuthHandler = './server/handlers/admin-auth.ts'
 
 const buildCsp = () => ({
@@ -31,11 +32,13 @@ const buildCsp = () => ({
   'object-src': ["'none'"],
   'base-uri': ["'self'"],
   'form-action': ["'self'"],
+  ...(cspReportUri ? { 'report-uri': [cspReportUri] } : {}),
 })
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  compatibilityDate: '2026-04-09',
+  // Keep pinned to reviewed behavior. Bump deliberately with Nuxt upgrades.
+  compatibilityDate: '2025-11-01',
   devtools: { enabled: isDev },
   app: {
     head: {
@@ -51,7 +54,7 @@ export default defineNuxtConfig({
       allowedHosts: isDev ? ['localhost', '127.0.0.1', '.trycloudflare.com'] : undefined,
     },
     optimizeDeps: {
-      include: ['better-auth/vue', '@formkit/auto-animate/vue', 'zod'],
+      include: ['better-auth/vue', 'zod'],
     },
     build: {
       rollupOptions: {
@@ -248,7 +251,7 @@ export default defineNuxtConfig({
 
   // Performance optimizations
   experimental: {
-    payloadExtraction: true,
+    payloadExtraction: false,
     renderJsonPayloads: true,
     componentIslands: true,
   },

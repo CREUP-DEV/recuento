@@ -15,23 +15,99 @@ const props = defineProps<{
   }>
   minimumVotes?: number | null
   winnerIds?: string[]
+  isOpen?: boolean
 }>()
 
-const totalVotes = computed(() => props.options.reduce((sum, o) => sum + o.count, 0))
+const displayOptions = computed(() =>
+  props.isOpen ? props.options : [...props.options].sort((a, b) => b.count - a.count)
+)
 
-function pct(count: number) {
-  return totalVotes.value > 0 ? (count / totalVotes.value) * 100 : 0
-}
+const totalVotes = computed(() => props.options.reduce((sum, o) => sum + o.count, 0))
+const liveAnnouncement = ref('')
+let liveAnnouncementTimeout: ReturnType<typeof setTimeout> | null = null
 
 function isWinner(optionId: string) {
   return props.winnerIds ? props.winnerIds.includes(optionId) : false
 }
+
+watch(
+  () =>
+    props.options.map((option) => ({ id: option.id, label: option.label, count: option.count })),
+  (nextOptions, previousOptions) => {
+    if (!previousOptions || previousOptions.length === 0) {
+      return
+    }
+
+    const changedOption = nextOptions.find((option) => {
+      const previousOption = previousOptions.find((entry) => entry.id === option.id)
+      return previousOption && previousOption.count !== option.count
+    })
+
+    if (!changedOption) {
+      return
+    }
+
+    const previousOption = previousOptions.find((option) => option.id === changedOption.id)
+    if (!previousOption) {
+      return
+    }
+
+    liveAnnouncement.value = t(
+      changedOption.count > previousOption.count
+        ? 'accessibility.voteCountIncreased'
+        : 'accessibility.voteCountDecreased',
+      {
+        option: changedOption.label,
+        count: formatNumber(changedOption.count),
+      }
+    )
+
+    if (liveAnnouncementTimeout) {
+      clearTimeout(liveAnnouncementTimeout)
+    }
+
+    liveAnnouncementTimeout = setTimeout(() => {
+      liveAnnouncement.value = ''
+      liveAnnouncementTimeout = null
+    }, 1_500)
+  }
+)
+
+onBeforeUnmount(() => {
+  if (liveAnnouncementTimeout) {
+    clearTimeout(liveAnnouncementTimeout)
+  }
+})
+
+const roundedPcts = computed(() => {
+  const total = totalVotes.value
+  if (total === 0) return displayOptions.value.map(() => 0)
+
+  const exact = displayOptions.value.map((o) => (o.count / total) * 100)
+  const floored = exact.map(Math.floor)
+  const remainders = exact.map((v, i) => ({ i, r: v - (floored[i] ?? 0) }))
+  const diff = 100 - floored.reduce((a, b) => a + b, 0)
+
+  const result = [...floored]
+  remainders
+    .sort((a, b) => b.r - a.r)
+    .slice(0, diff)
+    .forEach(({ i }) => {
+      result[i] = (result[i] ?? 0) + 1
+    })
+
+  return result
+})
 </script>
 
 <template>
-  <div :aria-label="t('accessibility.voteChart')" role="img" class="space-y-3">
+  <div class="space-y-3">
+    <p class="sr-only" aria-live="polite">
+      {{ liveAnnouncement }}
+    </p>
+
     <TransitionGroup name="list" tag="div" class="space-y-2">
-      <div v-for="(option, index) in props.options" :key="option.id" class="group">
+      <div v-for="(option, index) in displayOptions" :key="option.id" class="group">
         <div class="mb-1.5 flex items-center justify-between gap-3">
           <div class="flex min-w-0 items-center gap-2">
             <span
@@ -54,7 +130,7 @@ function isWinner(optionId: string) {
             />
           </div>
           <span class="shrink-0 font-mono text-base font-bold tabular-nums">
-            {{ formatNumber(option.count) }} · {{ Math.round(pct(option.count)) }}%
+            {{ formatNumber(option.count) }} · {{ roundedPcts[index] }}%
           </span>
         </div>
         <VoteBar
@@ -91,10 +167,10 @@ function isWinner(optionId: string) {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="option in props.options" :key="option.id">
+          <tr v-for="(option, index) in displayOptions" :key="option.id">
             <td>{{ option.label }}</td>
             <td>{{ formatNumber(option.count) }}</td>
-            <td>{{ Math.round(pct(option.count)) }}%</td>
+            <td>{{ roundedPcts[index] }}%</td>
             <td>{{ option.canWin === false ? t('votes.cannotWinLabel') : '' }}</td>
             <td>
               {{
@@ -110,7 +186,7 @@ function isWinner(optionId: string) {
           <tr>
             <td>{{ t('votes.total') }}</td>
             <td>{{ formatNumber(totalVotes) }}</td>
-            <td>100%</td>
+            <td>{{ totalVotes > 0 ? '100%' : '0%' }}</td>
             <td />
             <td />
             <td />
@@ -129,6 +205,6 @@ function isWinner(optionId: string) {
 .list-enter-from,
 .list-leave-to {
   opacity: 0;
-  transform: translateX(-20px);
+  transform: translateY(-12px);
 }
 </style>

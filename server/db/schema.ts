@@ -77,6 +77,10 @@ export const votes = pgTable(
       'votes_max_winners_positive',
       sql`${table.maxWinners} IS NULL OR ${table.maxWinners} > 0`
     ),
+    check(
+      'votes_timeline_valid',
+      sql`${table.startedAt} IS NULL OR ${table.endedAt} IS NULL OR ${table.endedAt} > ${table.startedAt}`
+    ),
   ]
 )
 
@@ -103,7 +107,7 @@ export const voteOptions = pgTable(
   },
   (table) => [
     index('idx_vote_options_vote_id').on(table.voteId),
-    index('idx_vote_options_order').on(table.order),
+    index('idx_vote_options_vote_can_win').on(table.voteId, table.canWin),
     uniqueIndex('idx_vote_options_vote_order_unique').on(table.voteId, table.order),
     uniqueIndex('idx_vote_options_shortcut_unique')
       .on(table.voteId, table.shortcut)

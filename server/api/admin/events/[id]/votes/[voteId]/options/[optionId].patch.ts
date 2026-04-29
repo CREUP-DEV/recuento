@@ -1,6 +1,7 @@
 import { and, eq, ne } from 'drizzle-orm'
 import { db } from '#db'
 import { voteOptions } from '#db/schema'
+import { pickDefined } from '#server-utils/pickDefined'
 import { requireOptionInAdminScope, requireVoteInAdminScope } from '#server-utils/adminVoteScope'
 import { emitVoteCountUpdate } from '#server-utils/voteCountEmitter'
 import { updateOptionSchema } from '#validation/options'
@@ -52,12 +53,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  const updateData: Record<string, unknown> = {}
-  if (data.label !== undefined) updateData.label = data.label
-  if (data.color !== undefined) updateData.color = data.color
-  if (data.shortcut !== undefined) updateData.shortcut = data.shortcut
-  if (data.count !== undefined) updateData.count = data.count
-  if (data.canWin !== undefined) updateData.canWin = data.canWin
+  const updateData = pickDefined(data, ['label', 'color', 'shortcut', 'count', 'canWin'])
 
   if (Object.keys(updateData).length === 0) {
     throw createError({
@@ -80,7 +76,8 @@ export default defineEventHandler(async (event) => {
     data.count !== undefined ||
     data.color !== undefined ||
     data.label !== undefined ||
-    data.shortcut !== undefined
+    data.shortcut !== undefined ||
+    data.canWin !== undefined
   ) {
     await emitVoteCountUpdate(voteId)
   }

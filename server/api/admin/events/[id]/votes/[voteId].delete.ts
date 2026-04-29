@@ -26,6 +26,7 @@ export default defineEventHandler(async (event) => {
       voteId,
       eventId: deleted.eventId,
       open: false,
+      visible: false,
       startedAt: vote.startedAt?.toISOString() ?? null,
       endedAt: new Date().toISOString(),
     })

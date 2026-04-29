@@ -69,6 +69,7 @@ Opcionales:
 | `NUXT_UMAMI_HOST`          | Host de Umami para analítica       | —               |
 | `NUXT_UMAMI_ID`            | ID del sitio en Umami              | —               |
 | `NUXT_UMAMI_TAG`           | Nombre del data attribute de Umami | —               |
+| `NUXT_CSP_REPORT_URI`      | Endpoint opcional para reportes CSP | —               |
 
 Variables útiles en local:
 

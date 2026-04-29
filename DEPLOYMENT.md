@@ -104,6 +104,7 @@ Opcionales:
 ```env
 NUXT_UMAMI_HOST=https://umami.example.com
 NUXT_UMAMI_ID=<site-id>
+NUXT_CSP_REPORT_URI=https://recuento.creup.es/api/csp/report
 ```
 
 ## Google OAuth

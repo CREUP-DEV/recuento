@@ -6,14 +6,12 @@ const shortcutField = z
   .nullable()
   .optional()
 
-// Accepts: #RGB, #RRGGBB, rgb(...), rgba(...), hsl(...), and CSS named colors
-const CSS_COLOR_RE =
-  /^(#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})|rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)|rgba\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*(0|1|0?\.\d+)\s*\)|hsl\(\s*\d{1,3}\s*,\s*\d{1,3}%\s*,\s*\d{1,3}%\s*\)|[a-zA-Z]{3,30})$/
+const HEX_COLOR_RE = /^#([0-9a-fA-F]{6})$/
 
 const colorField = z
   .string()
-  .max(50)
-  .regex(CSS_COLOR_RE, 'Color no válido. Use formato hex (#RRGGBB), rgb(), hsl() o nombre CSS.')
+  .length(7)
+  .regex(HEX_COLOR_RE, 'Color no válido. Use formato hex (#RRGGBB).')
   .nullable()
   .optional()
 

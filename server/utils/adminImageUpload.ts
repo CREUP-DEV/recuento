@@ -1,5 +1,5 @@
 import { createError } from 'h3'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, unlink, writeFile } from 'node:fs/promises'
 import { basename, extname, isAbsolute, join, resolve } from 'node:path'
 import sharp from 'sharp'
 import { logError } from './logger'
@@ -76,6 +76,16 @@ export function getBannerFilenameFromPublicPath(publicPath: string) {
 
 export function getBannerAbsolutePath(filename: string) {
   return join(getBannerUploadDir(), filename)
+}
+
+export async function deleteBannerFile(publicPath: string): Promise<void> {
+  const filename = getBannerFilenameFromPublicPath(publicPath)
+  if (!filename) return
+  try {
+    await unlink(getBannerAbsolutePath(filename))
+  } catch {
+    // ignore — file may already be gone
+  }
 }
 
 export async function saveBannerImage({

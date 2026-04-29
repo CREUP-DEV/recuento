@@ -30,11 +30,30 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  const optionRows = await db
+    .select({ canWin: voteOptions.canWin })
+    .from(voteOptions)
+    .where(eq(voteOptions.voteId, voteId))
+
+  if (optionRows.length === 0) {
+    throw createError({
+      statusCode: 409,
+      message: 'La votación debe tener al menos una opción para abrirse.',
+    })
+  }
+
+  if (!optionRows.some((o) => o.canWin)) {
+    throw createError({
+      statusCode: 409,
+      message: 'Al menos una opción debe contar para el resultado.',
+    })
+  }
+
   const updated = await db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('global-open-vote')::bigint)`)
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(1000001)`)
 
     const [alreadyOpen] = await tx
-      .select({ id: votes.id })
+      .select({ id: votes.id, eventId: votes.eventId, name: votes.name })
       .from(votes)
       .where(and(eq(votes.open, true), ne(votes.id, voteId)))
       .limit(1)
@@ -43,6 +62,11 @@ export default defineEventHandler(async (event) => {
       throw createError({
         statusCode: 409,
         message: 'Ya hay una votación abierta. Ciérrala antes de abrir otra.',
+        data: {
+          openVoteId: alreadyOpen.id,
+          openEventId: alreadyOpen.eventId,
+          openVoteName: alreadyOpen.name,
+        },
       })
     }
 
@@ -68,6 +92,7 @@ export default defineEventHandler(async (event) => {
     voteId: updated.id,
     eventId: updated.eventId,
     open: true,
+    visible: true,
     startedAt: updated.startedAt?.toISOString() ?? null,
     endedAt: null,
   })
@@ -77,6 +102,8 @@ export default defineEventHandler(async (event) => {
     voteId: updated.id,
     eventId: updated.eventId,
     minimumVotes: updated.minimumVotes ?? null,
+    maxWinners: updated.maxWinners ?? null,
+    confettiEnabled: updated.confettiEnabled,
     options: options.map((o) => ({
       id: o.id,
       label: o.label,

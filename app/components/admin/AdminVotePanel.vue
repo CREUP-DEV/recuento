@@ -48,6 +48,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const toast = useToast()
+const localePath = useLocalePath()
 const { copy } = useClipboard()
 const { launchConfetti } = useConfetti()
 
@@ -135,15 +136,16 @@ watch(
   }
 )
 
-// When the parent refresh brings in new server counts, discard our local overrides
+// Clear local overrides when the vote transitions from open to closed
 watch(
-  () => props.vote.options,
-  () => {
-    localCounts.value = {}
-    voteHistory.value = []
-    redoHistory.value = []
-  },
-  { deep: false }
+  () => props.vote.open,
+  (open) => {
+    if (!open) {
+      localCounts.value = {}
+      voteHistory.value = []
+      redoHistory.value = []
+    }
+  }
 )
 
 const { flashingOptionId, flashOption } = useVoteKeyboard(
@@ -172,6 +174,7 @@ async function toggleOpen() {
       title: props.vote.open ? t('admin.toasts.voteClosed') : t('admin.toasts.voteOpened'),
       color: 'success',
     })
+    umTrackEvent(action === 'open' ? 'vote_opened' : 'vote_closed', { voteId: props.vote.id })
     if (action === 'close' && props.vote.confettiEnabled && res.data.winnerIds?.length) {
       launchConfetti()
     }
@@ -180,8 +183,30 @@ async function toggleOpen() {
     redoHistory.value = []
     emit('refresh')
   } catch (err: unknown) {
-    const msg = (err as { data?: { message?: string } }).data?.message
-    toast.add({ title: msg ?? t('admin.toasts.voteDeleteError'), color: 'error' })
+    const apiErr = err as {
+      data?: { message?: string; openVoteId?: string; openEventId?: string; openVoteName?: string }
+    }
+    const msg = apiErr.data?.message
+    const openEventId = apiErr.data?.openEventId
+    const openVoteName = apiErr.data?.openVoteName
+    if (openEventId) {
+      toast.add({
+        title: msg ?? t('common.error'),
+        description: t('admin.toasts.openVoteConflict', { name: openVoteName }),
+        color: 'warning',
+        actions: [
+          {
+            label: t('admin.toasts.goToVote'),
+            onClick: async () => {
+              await navigateTo(localePath(`/admin/events/${openEventId}`))
+            },
+          },
+        ],
+      })
+    } else {
+      toast.add({ title: msg ?? t('common.error'), color: 'error' })
+    }
+    umTrackEvent('vote_open_conflict', { voteId: props.vote.id })
   } finally {
     isTogglingOpen.value = false
   }
@@ -189,13 +214,14 @@ async function toggleOpen() {
 
 async function toggleVisibility() {
   const newVisible = !props.vote.visible
+  emit('update-vote', { visible: newVisible })
   try {
     await $fetch(`/api/admin/events/${props.eventId}/votes/${props.vote.id}`, {
       method: 'PATCH',
       body: { visible: newVisible },
     })
-    emit('update-vote', { visible: newVisible })
   } catch {
+    emit('update-vote', { visible: !newVisible })
     toast.add({ title: t('admin.toasts.voteVisibilityError'), color: 'error' })
   }
 }
@@ -242,13 +268,14 @@ async function incrementOption(optionId: string) {
   try {
     await $fetch(
       `/api/admin/events/${props.eventId}/votes/${props.vote.id}/options/${optionId}/increment`,
-      { method: 'POST' }
+      { method: 'POST', headers: { 'x-request-id': crypto.randomUUID() } }
     )
   } catch {
     removeLastHistoryEntry(optionId)
     localCounts.value = {}
     emit('refresh')
     toast.add({ title: t('common.error'), color: 'error' })
+    umTrackEvent('vote_increment_failed', { voteId: props.vote.id, optionId })
   }
 }
 
@@ -268,7 +295,7 @@ async function decrementOption(optionId: string) {
   try {
     await $fetch(
       `/api/admin/events/${props.eventId}/votes/${props.vote.id}/options/${optionId}/decrement`,
-      { method: 'POST' }
+      { method: 'POST', headers: { 'x-request-id': crypto.randomUUID() } }
     )
   } catch {
     localCounts.value = {}
@@ -301,7 +328,7 @@ function undoLastVote() {
 
   void $fetch(
     `/api/admin/events/${props.eventId}/votes/${props.vote.id}/options/${optionId}/decrement`,
-    { method: 'POST' }
+    { method: 'POST', headers: { 'x-request-id': crypto.randomUUID() } }
   ).catch(() => {
     localCounts.value = {}
     emit('refresh')
@@ -343,7 +370,7 @@ function redoLastVote() {
 
   void $fetch(
     `/api/admin/events/${props.eventId}/votes/${props.vote.id}/options/${optionId}/increment`,
-    { method: 'POST' }
+    { method: 'POST', headers: { 'x-request-id': crypto.randomUUID() } }
   ).catch(() => {
     localCounts.value = {}
     emit('refresh')
@@ -385,6 +412,7 @@ async function setOptionCount(optionId: string, count: number) {
   localCounts.value[optionId] = count
   voteHistory.value = []
   redoHistory.value = []
+  toast.add({ title: t('admin.toasts.historyCleared'), color: 'neutral', duration: 2000 })
   try {
     await $fetch(
       `/api/admin/events/${props.eventId}/votes/${props.vote.id}/options/${optionId}/set-count`,
@@ -638,6 +666,15 @@ const activeShortcuts = computed(() =>
     .filter((shortcut): shortcut is string => Boolean(shortcut))
 )
 
+const floatingBarRef = ref<HTMLElement | null>(null)
+const { height: floatingBarHeight } = useElementSize(floatingBarRef)
+const isDesktop = useMediaQuery('(min-width: 768px)')
+const mobileBottomPadding = computed(() =>
+  !isDesktop.value && props.vote.open && displayOptions.value.length > 0
+    ? `${floatingBarHeight.value + 16}px`
+    : undefined
+)
+
 // Warn before unloading while a vote is active so admins don't accidentally lose context
 useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
   if (props.vote.open) {
@@ -648,108 +685,110 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
 
 <template>
   <div
-    class="border-default bg-default relative overflow-hidden rounded-xl border transition-[background-color,border-color,box-shadow,padding] duration-200"
-    :class="[
-      vote.open ? 'border-primary/20 shadow-sm' : 'shadow-sm',
-      vote.open && displayOptions.length > 0 ? 'pb-24 md:pb-0' : '',
-    ]"
+    class="border-default bg-default relative overflow-hidden rounded-xl border transition-[background-color,border-color,box-shadow,padding] duration-200 md:pb-0"
+    :class="vote.open ? 'border-primary/20 shadow-sm' : 'shadow-sm'"
+    :style="mobileBottomPadding ? { paddingBottom: mobileBottomPadding } : {}"
   >
     <!-- Header -->
     <div
-      class="border-default relative z-10 flex flex-wrap items-start justify-between gap-3 border-b px-6 py-4 transition-colors duration-200"
+      class="border-default relative z-10 flex flex-col gap-2 border-b px-4 py-3 transition-colors duration-200 sm:px-6 sm:py-4"
       :class="vote.open ? 'bg-muted/20' : 'bg-transparent'"
     >
-      <div class="min-w-0 flex-1">
-        <div class="flex flex-wrap items-center gap-3">
-          <h3 class="font-semibold">{{ vote.name }}</h3>
-          <VoteStatus :open="vote.open" :started-at="vote.startedAt" :ended-at="vote.endedAt" />
-          <span class="text-muted text-sm">
-            {{ t('admin.totalEmitted') }}:
-            <span class="font-mono font-semibold">{{ totalVotes }}</span>
-          </span>
+      <!-- Row 1: name + primary action buttons -->
+      <div class="flex min-w-0 items-center gap-2">
+        <h3 class="min-w-0 flex-1 truncate font-semibold">{{ vote.name }}</h3>
+        <div class="flex shrink-0 items-center gap-1">
+          <UButton
+            v-if="!vote.open"
+            icon="i-tabler-player-play"
+            variant="subtle"
+            color="success"
+            size="sm"
+            class="transition-transform duration-200 active:scale-95"
+            :loading="isTogglingOpen"
+            :aria-label="t('admin.openVote')"
+            @click="toggleOpen"
+          />
+          <UButton
+            v-else
+            icon="i-tabler-player-stop"
+            variant="subtle"
+            color="error"
+            size="sm"
+            class="transition-transform duration-200 active:scale-95"
+            :loading="isTogglingOpen"
+            :aria-label="t('admin.closeVote')"
+            @click="toggleOpen"
+          />
+          <UButton
+            icon="i-tabler-trash"
+            variant="ghost"
+            color="error"
+            size="sm"
+            :aria-label="t('admin.deleteVote')"
+            @click="showDeleteVoteModal = true"
+          />
         </div>
       </div>
-      <div class="flex flex-wrap items-center justify-end gap-2">
-        <Transition name="vote-controls">
-          <div v-if="vote.open" class="hidden md:inline-flex">
-            <UButton
-              icon="i-tabler-arrow-back-up"
-              variant="subtle"
-              color="neutral"
-              size="xs"
-              :disabled="!canUndo"
-              aria-keyshortcuts="Backspace"
-              @click="triggerUndo"
-            >
-              {{ t('admin.undoLastVoteButton') }}
-            </UButton>
-          </div>
-        </Transition>
-        <Transition name="vote-controls">
-          <div v-if="vote.open" class="hidden md:inline-flex">
-            <UButton
-              icon="i-tabler-arrow-forward-up"
-              variant="subtle"
-              color="neutral"
-              size="xs"
-              :disabled="!canRedo"
-              aria-keyshortcuts="Shift+Backspace"
-              @click="triggerRedo"
-            >
-              {{ t('admin.redoLastVoteButton') }}
-            </UButton>
-          </div>
-        </Transition>
-        <UButton
-          icon="i-tabler-copy"
-          variant="subtle"
-          color="neutral"
-          size="xs"
-          :disabled="displayOptions.length === 0"
-          @click="copyResults"
-        >
-          {{ t('admin.copyResults') }}
-        </UButton>
-        <UButton
-          :color="vote.visible ? 'success' : 'neutral'"
-          variant="subtle"
-          size="xs"
-          :aria-pressed="vote.visible"
-          :disabled="vote.open && vote.visible"
-          @click="toggleVisibility"
-        >
-          {{ vote.visible ? t('admin.visible') : t('admin.hidden') }}
-        </UButton>
-        <UButton
-          v-if="!vote.open"
-          icon="i-tabler-player-play"
-          variant="subtle"
-          color="success"
-          size="sm"
-          class="transition-transform duration-200 active:scale-95"
-          :loading="isTogglingOpen"
-          :aria-label="t('admin.openVote')"
-          @click="toggleOpen"
-        />
-        <UButton
-          v-else
-          icon="i-tabler-player-stop"
-          variant="subtle"
-          color="error"
-          size="sm"
-          class="transition-transform duration-200 active:scale-95"
-          :loading="isTogglingOpen"
-          :aria-label="t('admin.closeVote')"
-          @click="toggleOpen"
-        />
-        <UButton
-          icon="i-tabler-trash"
-          variant="ghost"
-          color="error"
-          size="sm"
-          :aria-label="t('admin.deleteVote')"
-          @click="showDeleteVoteModal = true"
-        />
+      <!-- Row 2: status + total + secondary actions -->
+      <div class="flex flex-wrap items-center gap-2">
+        <VoteStatus :open="vote.open" :started-at="vote.startedAt" :ended-at="vote.endedAt" />
+        <span class="text-muted text-sm">
+          {{ t('admin.totalEmitted') }}:
+          <span class="font-mono font-semibold">{{ totalVotes }}</span>
+        </span>
+        <div class="ml-auto flex items-center gap-1">
+          <Transition name="vote-controls">
+            <div v-if="vote.open" class="hidden md:inline-flex">
+              <UButton
+                icon="i-tabler-arrow-back-up"
+                variant="subtle"
+                color="neutral"
+                size="xs"
+                :disabled="!canUndo"
+                aria-keyshortcuts="Backspace"
+                @click="triggerUndo"
+              >
+                {{ t('admin.undoLastVoteButton') }}
+              </UButton>
+            </div>
+          </Transition>
+          <Transition name="vote-controls">
+            <div v-if="vote.open" class="hidden md:inline-flex">
+              <UButton
+                icon="i-tabler-arrow-forward-up"
+                variant="subtle"
+                color="neutral"
+                size="xs"
+                :disabled="!canRedo"
+                aria-keyshortcuts="Shift+Backspace"
+                @click="triggerRedo"
+              >
+                {{ t('admin.redoLastVoteButton') }}
+              </UButton>
+            </div>
+          </Transition>
+          <UButton
+            icon="i-tabler-copy"
+            variant="subtle"
+            color="neutral"
+            size="xs"
+            :disabled="displayOptions.length === 0"
+            @click="copyResults"
+          >
+            <span class="hidden sm:inline">{{ t('admin.copyResults') }}</span>
+          </UButton>
+          <UButton
+            :color="vote.visible ? 'success' : 'neutral'"
+            variant="subtle"
+            size="xs"
+            :aria-pressed="vote.visible"
+            :disabled="vote.open && vote.visible"
+            @click="toggleVisibility"
+          >
+            {{ vote.visible ? t('admin.visible') : t('admin.hidden') }}
+          </UButton>
+        </div>
       </div>
     </div>
 
@@ -787,6 +826,7 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
                     id="setting-min-votes"
                     v-model="settingsMinimumVotes"
                     type="number"
+                    inputmode="numeric"
                     min="1"
                     size="sm"
                     :placeholder="t('admin.minimumVotesPlaceholder')"
@@ -805,6 +845,7 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
                     id="setting-max-winners"
                     v-model="settingsMaxWinners"
                     type="number"
+                    inputmode="numeric"
                     min="1"
                     size="sm"
                     :placeholder="t('admin.maxWinnersPlaceholder')"
@@ -852,7 +893,7 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
       </div>
 
       <div v-if="vote.open" class="space-y-3">
-        <AdminVoteOptionRow
+        <VoteOptionRow
           v-for="(option, index) in displayOptions"
           :key="option.id"
           :option="option"
@@ -887,7 +928,7 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
           @change="onDragChange"
         >
           <template #item="{ element: option, index }">
-            <AdminVoteOptionRow
+            <VoteOptionRow
               :option="option"
               :flashing="flashingOptionId === option.id"
               :index="index"
@@ -933,6 +974,7 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
         <Transition name="vote-float">
           <div v-if="vote.open && displayOptions.length > 0" class="md:hidden">
             <div
+              ref="floatingBarRef"
               class="border-default bg-default/95 fixed inset-x-4 bottom-4 z-40 rounded-2xl border p-3 shadow-lg backdrop-blur"
             >
               <div class="flex flex-wrap justify-center gap-2">

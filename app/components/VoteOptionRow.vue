@@ -14,15 +14,18 @@ interface VoteOption {
 
 const props = defineProps<{
   option: VoteOption
-  flashing?: boolean
   index: number
   total: number
   isFirst: boolean
   isLast: boolean
   locked?: boolean
   active?: boolean
+  flashing?: boolean
   thresholdReached?: boolean
   isWinner?: boolean
+  resultsMode?: boolean
+  /** 'sm' = admin panel, 'md' = local vote (default: 'sm') */
+  size?: 'sm' | 'md'
 }>()
 
 const emit = defineEmits<{
@@ -36,6 +39,8 @@ const emit = defineEmits<{
   moveDown: []
 }>()
 
+const isMd = computed(() => props.size === 'md')
+
 const defaultColor = computed(
   () => DEFAULT_OPTION_COLORS[props.index % DEFAULT_OPTION_COLORS.length] ?? '#93c5fd'
 )
@@ -44,8 +49,11 @@ const colorInput = ref<HTMLInputElement | null>(null)
 const countInputElement = ref<HTMLInputElement | null>(null)
 
 function openColorPicker() {
-  colorInput.value?.showPicker?.()
-  colorInput.value?.click()
+  if (colorInput.value?.showPicker) {
+    colorInput.value.showPicker()
+  } else {
+    colorInput.value?.click()
+  }
 }
 
 function onColorChange(e: Event) {
@@ -55,10 +63,13 @@ function onColorChange(e: Event) {
 const countInput = ref(String(props.option.count))
 const isEditingCount = ref(false)
 
-const canShowReorderControls = computed(() => !(props.isFirst && props.isLast))
-const canShowVoteControls = computed(() => Boolean(props.active))
-const canShowDelete = computed(() => !props.active)
-const canShowColorControls = computed(() => !props.active)
+const canShowReorderControls = computed(
+  () => !props.locked && !(props.isFirst && props.isLast) && !props.resultsMode
+)
+const canShowVoteControls = computed(() => Boolean(props.active) && !props.resultsMode)
+const canShowDelete = computed(() => !props.active && !props.resultsMode)
+const canShowColorControls = computed(() => !props.active && !props.resultsMode)
+const canShowCanWin = computed(() => !props.active && !props.resultsMode)
 
 watch(
   () => props.option.count,
@@ -67,7 +78,7 @@ watch(
   }
 )
 
-function confirmSetCount() {
+function confirmCount() {
   const val = parseInt(countInput.value, 10)
   if (!Number.isNaN(val) && val >= 0) emit('setCount', val)
   countInput.value = String(Number.isNaN(val) || val < 0 ? props.option.count : val)
@@ -75,10 +86,7 @@ function confirmSetCount() {
 }
 
 function startEditingCount() {
-  if (!props.active) {
-    return
-  }
-
+  if (!props.active) return
   isEditingCount.value = true
 }
 
@@ -88,10 +96,7 @@ function cancelCountEdit() {
 }
 
 watch(isEditingCount, async (editing) => {
-  if (!editing) {
-    return
-  }
-
+  if (!editing) return
   await nextTick()
   countInputElement.value?.focus()
   countInputElement.value?.select()
@@ -106,20 +111,20 @@ watch(isEditingCount, async (editing) => {
       active
         ? 'bg-default rounded-xl p-3 shadow-sm'
         : 'bg-default hover:bg-muted/20 rounded-2xl p-4 shadow-sm',
-      flashing ? 'bg-primary/10 ring-primary/20 ring-1' : '',
+      flashing ? 'bg-primary/8 ring-primary/20 ring-1' : '',
       thresholdReached && !flashing ? 'bg-green-50 dark:bg-green-950/20' : '',
     ]"
   >
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-x-2 gap-y-2 md:flex-nowrap">
+      <!-- Reorder controls -->
       <div v-if="canShowReorderControls" class="flex shrink-0 items-center gap-1.5">
-        <div class="flex min-h-18 flex-col justify-center gap-1">
+        <div class="hidden min-h-18 flex-col justify-center gap-1 sm:flex">
           <UButton
             v-if="!isFirst"
             icon="i-tabler-chevron-up"
             variant="ghost"
             color="neutral"
             size="sm"
-            :disabled="locked"
             :aria-label="t('admin.moveOptionUp')"
             :ui="{ base: 'p-1.5' }"
             @click="emit('moveUp')"
@@ -130,7 +135,6 @@ watch(isEditingCount, async (editing) => {
             variant="ghost"
             color="neutral"
             size="sm"
-            :disabled="locked"
             :aria-label="t('admin.moveOptionDown')"
             :ui="{ base: 'p-1.5' }"
             @click="emit('moveDown')"
@@ -146,6 +150,7 @@ watch(isEditingCount, async (editing) => {
         </span>
       </div>
 
+      <!-- Color swatch / picker -->
       <div class="flex shrink-0 items-center gap-2 self-center">
         <button
           v-if="canShowColorControls"
@@ -173,7 +178,7 @@ watch(isEditingCount, async (editing) => {
           @change.stop="onColorChange"
         />
         <span
-          v-else
+          v-if="!canShowColorControls"
           class="block size-4 shrink-0 self-center rounded-full ring-1 ring-black/5"
           :style="{ backgroundColor: option.color ?? defaultColor }"
           aria-hidden="true"
@@ -187,6 +192,7 @@ watch(isEditingCount, async (editing) => {
         </span>
       </div>
 
+      <!-- Reset color button -->
       <UButton
         v-if="canShowColorControls && option.color && option.color !== defaultColor"
         icon="i-tabler-refresh"
@@ -195,22 +201,28 @@ watch(isEditingCount, async (editing) => {
         size="xs"
         :aria-label="t('admin.resetOptionColor')"
         :title="t('admin.resetOptionColor')"
-        :disabled="locked"
         @click.stop="emit('updateColor', null)"
       />
 
+      <!-- Label + winner / canWin -->
       <div class="flex min-w-0 flex-1 items-center gap-2">
-        <span class="min-w-0 truncate text-left text-sm font-medium">{{ option.label }}</span>
+        <span
+          class="min-w-0 truncate text-left font-medium"
+          :class="[isMd ? 'text-base' : 'text-sm']"
+        >
+          {{ option.label }}
+        </span>
         <UIcon
           v-if="isWinner"
           name="i-tabler-trophy"
-          class="size-4 shrink-0 text-amber-500"
+          class="shrink-0 text-amber-500"
+          :class="isMd ? 'size-5' : 'size-4'"
           :aria-label="t('accessibility.winner')"
         />
         <span v-else-if="active && !option.canWin" class="text-muted shrink-0 text-xs">
           {{ t('admin.cannotWin') }}
         </span>
-        <div v-if="!active" class="ml-auto flex shrink-0 items-center gap-1.5">
+        <div v-if="canShowCanWin" class="ml-auto flex shrink-0 items-center gap-1.5">
           <USwitch
             :model-value="option.canWin"
             size="xs"
@@ -218,14 +230,20 @@ watch(isEditingCount, async (editing) => {
             :aria-label="t('admin.toggleCanWin')"
             @update:model-value="(val: boolean) => emit('update-can-win', val)"
           />
-          <span class="text-muted text-xs select-none">
+          <span class="text-muted hidden text-xs select-none sm:inline">
             {{ option.canWin ? t('admin.canWin') : t('admin.cannotWin') }}
           </span>
         </div>
       </div>
 
+      <!-- Vote controls (increment/decrement/count) -->
       <Transition name="vote-controls" mode="out-in">
-        <div v-if="canShowVoteControls" key="vote-controls" class="flex items-center gap-1">
+        <div
+          v-if="canShowVoteControls"
+          key="vote-controls"
+          class="flex items-center gap-1"
+          :class="isMd ? '' : 'w-full justify-between md:w-auto md:justify-start'"
+        >
           <UButton
             icon="i-tabler-minus"
             variant="ghost"
@@ -239,7 +257,8 @@ watch(isEditingCount, async (editing) => {
           <button
             v-if="!isEditingCount"
             type="button"
-            class="inline-flex h-9 w-11 items-center justify-center rounded-md bg-transparent font-mono text-sm font-bold tabular-nums transition-colors hover:bg-black/5"
+            class="inline-flex h-9 items-center justify-center rounded-md bg-transparent font-mono font-bold tabular-nums transition-colors hover:bg-black/5"
+            :class="isMd ? 'w-12 text-base' : 'w-11 text-sm'"
             :aria-label="t('admin.editCount')"
             :title="t('admin.editCount')"
             @click="startEditingCount"
@@ -250,12 +269,13 @@ watch(isEditingCount, async (editing) => {
             v-else
             ref="countInputElement"
             v-model="countInput"
-            class="border-default bg-default text-default focus:border-primary/40 focus:ring-primary/10 h-9 w-11 rounded-md border text-center font-mono text-sm font-bold tabular-nums outline-none focus:ring-2"
+            class="border-default bg-default text-default focus:border-primary/40 focus:ring-primary/10 h-9 rounded-md border text-center font-mono font-bold tabular-nums outline-none focus:ring-2"
+            :class="isMd ? 'w-12 text-base' : 'w-11 text-sm'"
             type="number"
             min="0"
             inputmode="numeric"
-            @blur="confirmSetCount"
-            @keydown.enter.prevent="confirmSetCount"
+            @blur="confirmCount"
+            @keydown.enter.prevent="confirmCount"
             @keydown.escape.prevent="cancelCountEdit"
           />
           <UButton
@@ -272,12 +292,14 @@ watch(isEditingCount, async (editing) => {
         <div
           v-else
           key="count-display"
-          class="bg-muted/70 min-w-12 rounded-full px-3 py-1 text-center font-mono text-sm font-bold tabular-nums"
+          class="bg-muted/70 rounded-full px-3 py-1 text-center font-mono font-bold tabular-nums"
+          :class="isMd ? 'min-w-14 text-base' : 'min-w-12 text-sm'"
         >
           {{ option.count }}
         </div>
       </Transition>
 
+      <!-- Delete button -->
       <Transition name="vote-controls">
         <div v-if="canShowDelete" class="flex">
           <UButton
@@ -300,6 +322,7 @@ watch(isEditingCount, async (editing) => {
       :color="option.color ?? defaultColor"
       :threshold-reached="thresholdReached"
       :is-winner="isWinner"
+      :tall="isMd"
     />
   </div>
 </template>

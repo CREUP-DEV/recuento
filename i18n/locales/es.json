@@ -125,6 +125,7 @@
     "closeVote": "Cerrar votación",
     "uploadBanner": "Subir banner",
     "changeBanner": "Cambiar banner",
+    "removeBanner": "Eliminar banner",
     "name": "Nombre",
     "visible": "Visible",
     "hidden": "Oculto",
@@ -207,7 +208,11 @@
       "fieldsRequired": "Todos los campos son obligatorios",
       "voteSettingsUpdated": "Configuración de votación actualizada",
       "voteSettingsError": "Error al actualizar la configuración",
-      "canWinError": "Error al actualizar la opción"
+      "canWinError": "Error al actualizar la opción",
+      "bannerRemoved": "Banner eliminado",
+      "historyCleared": "Historial de deshacer reiniciado",
+      "openVoteConflict": "Votación abierta: {name}",
+      "goToVote": "Ir al evento"
     }
   },
   "auth": {
@@ -229,7 +234,9 @@
     "expandSidebar": "Expandir menú lateral",
     "winner": "Ganador/a",
     "thresholdReached": "Mayoría mínima alcanzada",
-    "doesNotCount": "No computa"
+    "doesNotCount": "No computa",
+    "voteCountIncreased": "{option} sube a {count} votos",
+    "voteCountDecreased": "{option} baja a {count} votos"
   },
   "common": {
     "loading": "Cargando…",

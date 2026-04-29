@@ -50,6 +50,12 @@ function toDateInput(ts: string | null | undefined): string {
   return ts ? new Date(ts).toISOString().slice(0, 10) : ''
 }
 
+function syncEditForm(data: Pick<AdminEventData, 'name' | 'startDate' | 'endDate'>) {
+  editForm.value.name = data.name
+  editForm.value.startDate = toDateInput(data.startDate)
+  editForm.value.endDate = toDateInput(data.endDate)
+}
+
 // ─── Event editing ────────────────────────────────────────────────────────────
 
 const editForm = ref({
@@ -59,21 +65,44 @@ const editForm = ref({
 })
 
 watch(ev, (val) => {
-  if (val) {
-    editForm.value.name = val.name
-    editForm.value.startDate = toDateInput(val.startDate)
-    editForm.value.endDate = toDateInput(val.endDate)
+  if (val && !isFormDirty.value) {
+    syncEditForm(val)
   }
+})
+
+const isFormDirty = computed(() => {
+  if (!ev.value) return false
+  return (
+    editForm.value.name !== ev.value.name ||
+    editForm.value.startDate !== toDateInput(ev.value.startDate) ||
+    editForm.value.endDate !== toDateInput(ev.value.endDate)
+  )
+})
+
+useEventListener('beforeunload', (e: BeforeUnloadEvent) => {
+  if (isFormDirty.value) e.preventDefault()
 })
 
 async function updateEvent() {
   try {
-    await $fetch(`/api/admin/events/${eventId}`, {
+    const { data } = await $fetch<{
+      data: Pick<AdminEventData, 'id' | 'name' | 'banner' | 'startDate' | 'endDate'>
+    }>(`/api/admin/events/${eventId}`, {
       method: 'PATCH',
       body: editForm.value,
     })
+
+    if (eventData.value?.data) {
+      eventData.value = {
+        data: {
+          ...eventData.value.data,
+          ...data,
+        },
+      }
+    }
+
+    syncEditForm(data)
     toast.add({ title: t('admin.toasts.eventUpdated'), color: 'success' })
-    await refresh()
   } catch {
     toast.add({ title: t('admin.toasts.eventUpdateError'), color: 'error' })
   }
@@ -83,6 +112,14 @@ async function updateEvent() {
 
 const bannerInput = ref<HTMLInputElement | null>(null)
 const isUploadingBanner = ref(false)
+const bannerPreview = ref<string | null>(null)
+
+function onBannerFileSelected(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  bannerPreview.value = URL.createObjectURL(file)
+  void uploadBanner(e)
+}
 
 async function uploadBanner(e: Event) {
   const target = e.target as HTMLInputElement
@@ -99,12 +136,32 @@ async function uploadBanner(e: Event) {
       body: formData,
     })
     toast.add({ title: t('admin.toasts.bannerUploaded'), color: 'success' })
+    bannerPreview.value = null
     await refresh()
   } catch {
+    bannerPreview.value = null
     toast.add({ title: t('admin.toasts.bannerUploadError'), color: 'error' })
   } finally {
     isUploadingBanner.value = false
     if (target) target.value = ''
+  }
+}
+
+const isRemovingBanner = ref(false)
+
+async function removeBanner() {
+  isRemovingBanner.value = true
+  try {
+    await $fetch(`/api/admin/events/${eventId}`, {
+      method: 'PATCH',
+      body: { banner: null },
+    })
+    toast.add({ title: t('admin.toasts.bannerRemoved'), color: 'success' })
+    await refresh()
+  } catch {
+    toast.add({ title: t('admin.toasts.bannerUploadError'), color: 'error' })
+  } finally {
+    isRemovingBanner.value = false
   }
 }
 
@@ -162,36 +219,21 @@ function patchOption(voteId: string, optionId: string, fields: Partial<AdminEven
 
 // ─── SSE: refresh on external vote-status-change ──────────────────────────────
 
-onMounted(() => {
-  if (import.meta.server) return
-
-  const sse = new EventSource('/api/sse/votes')
-
-  sse.addEventListener('vote-status-change', () => refresh())
-  sse.addEventListener('vote-count-update', (rawEvent) => {
-    try {
-      const payload = JSON.parse((rawEvent as MessageEvent<string>).data) as {
-        voteId?: string
-        options?: AdminEventVoteOption[]
-      }
-
-      if (!payload.voteId || !Array.isArray(payload.options) || !eventData.value?.data) {
-        return
-      }
-
-      const vote = eventData.value.data.votes.find((entry) => entry.id === payload.voteId)
-
-      if (!vote) {
-        return
-      }
-
-      vote.options = payload.options.map((option) => ({ ...option, shortcut: null }))
-    } catch {
-      // Ignore malformed SSE payloads
+useSSEConnection({
+  url: '/api/sse/votes',
+  onEvent(type, data) {
+    if (type === 'vote-status-change') {
+      void refresh()
+      return
     }
-  })
-
-  onBeforeUnmount(() => sse.close())
+    if (type === 'vote-count-update') {
+      const payload = data as { voteId?: string; options?: AdminEventVoteOption[] }
+      if (!payload.voteId || !Array.isArray(payload.options) || !eventData.value?.data) return
+      const vote = eventData.value.data.votes.find((entry) => entry.id === payload.voteId)
+      if (!vote) return
+      vote.options = payload.options.map((option) => ({ ...option, shortcut: null }))
+    }
+  },
 })
 </script>
 
@@ -206,16 +248,29 @@ onMounted(() => {
       <!-- Banner -->
       <div class="mb-6">
         <div
-          v-if="ev.banner"
+          v-if="bannerPreview || ev.banner"
           class="bg-muted relative aspect-7/2 w-full overflow-hidden rounded-lg"
         >
+          <img
+            v-if="bannerPreview"
+            :src="bannerPreview"
+            :alt="ev.name"
+            class="size-full object-cover opacity-70"
+          />
           <NuxtImg
+            v-else-if="ev.banner"
             :src="ev.banner"
             :alt="ev.name"
             class="size-full object-cover"
             width="700"
             height="200"
           />
+          <div
+            v-if="isUploadingBanner"
+            class="absolute inset-0 flex items-center justify-center bg-black/30"
+          >
+            <UIcon name="i-tabler-loader-2" class="size-8 animate-spin text-white" />
+          </div>
         </div>
         <input
           ref="bannerInput"
@@ -224,17 +279,28 @@ onMounted(() => {
           class="hidden"
           aria-hidden="true"
           tabindex="-1"
-          @change="uploadBanner"
+          @change="onBannerFileSelected"
         />
-        <UButton
-          :icon="ev.banner ? 'i-tabler-refresh' : 'i-tabler-upload'"
-          variant="subtle"
-          class="mt-3"
-          :loading="isUploadingBanner"
-          @click="bannerInput?.click()"
-        >
-          {{ ev.banner ? t('admin.changeBanner') : t('admin.uploadBanner') }}
-        </UButton>
+        <div class="mt-3 flex gap-2">
+          <UButton
+            :icon="ev.banner ? 'i-tabler-refresh' : 'i-tabler-upload'"
+            variant="subtle"
+            :loading="isUploadingBanner"
+            @click="bannerInput?.click()"
+          >
+            {{ ev.banner ? t('admin.changeBanner') : t('admin.uploadBanner') }}
+          </UButton>
+          <UButton
+            v-if="ev.banner"
+            icon="i-tabler-x"
+            variant="ghost"
+            color="error"
+            :loading="isRemovingBanner"
+            @click="removeBanner"
+          >
+            {{ t('admin.removeBanner') }}
+          </UButton>
+        </div>
       </div>
 
       <form class="space-y-4" @submit.prevent="updateEvent">

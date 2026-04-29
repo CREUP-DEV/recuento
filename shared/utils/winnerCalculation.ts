@@ -10,6 +10,7 @@ export interface WinnerResult {
 }
 
 function topNWithTies(eligible: WinnerInput[], n: number): Set<string> {
+  if (n <= 0) return new Set()
   const sorted = [...eligible].sort((a, b) => b.count - a.count)
   if (sorted.length === 0) return new Set()
 
@@ -47,13 +48,15 @@ export function calculateWinners(
     }
   } else {
     const eligible = options.filter((o) => o.canWin)
-    if (eligible.every((o) => o.count === 0)) {
+    const eligibleWithVotes = eligible.filter((o) => o.count > 0)
+
+    if (eligibleWithVotes.length === 0) {
       winnerIds = new Set()
     } else if (maxWinners !== null) {
-      winnerIds = topNWithTies(eligible, maxWinners)
+      winnerIds = topNWithTies(eligibleWithVotes, maxWinners)
     } else {
-      const maxCount = Math.max(...eligible.map((o) => o.count))
-      winnerIds = new Set(eligible.filter((o) => o.count === maxCount).map((o) => o.id))
+      const maxCount = Math.max(...eligibleWithVotes.map((o) => o.count))
+      winnerIds = new Set(eligibleWithVotes.filter((o) => o.count === maxCount).map((o) => o.id))
     }
   }
 

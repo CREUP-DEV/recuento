@@ -26,7 +26,11 @@ const localePath = useLocalePath()
 const route = useRoute()
 const voteId = route.params.id as string
 
-const { data, error } = await useFetch<{ data: VotePageData }>(`/api/votes/${voteId}`)
+const {
+  data,
+  error,
+  refresh: refreshVote,
+} = await useFetch<{ data: VotePageData }>(`/api/votes/${voteId}`)
 const vote = computed(() => data.value?.data)
 
 if (!vote.value && error.value) {
@@ -36,8 +40,9 @@ if (!vote.value && error.value) {
 const {
   options: streamOptions,
   minimumVotes: streamMinimumVotes,
-  winnerIds: streamWinnerIds,
+  maxWinners: streamMaxWinners,
   isConnected,
+  isHidden,
   lastEvent,
 } = useVoteStream(voteId)
 
@@ -45,6 +50,18 @@ const { launchConfetti } = useConfetti()
 
 // isOpen starts from fetch, updates reactively via SSE status-change events
 const isOpen = ref(vote.value?.open ?? false)
+
+watch(isConnected, async (connected, wasConnected) => {
+  if (connected && wasConnected === false) {
+    await refreshVote()
+    isOpen.value = vote.value?.open ?? isOpen.value
+  }
+})
+
+watch(isHidden, (hidden) => {
+  if (hidden) navigateTo(localePath('/'))
+})
+
 watch(lastEvent, (event) => {
   if (event?.type === 'vote-status-change' && event.voteId === voteId) {
     isOpen.value = event.open
@@ -65,24 +82,23 @@ const displayOptions = computed(() =>
 
 // Calculate winners from initial fetch data (for closed votes on page load).
 // Uses isOpen (reactive) so winners clear when vote is reopened via SSE.
-const initialWinnerIds = computed(() => {
-  if (!vote.value || isOpen.value) return []
-  return [
-    ...calculateWinners(
-      vote.value.options.map((o) => ({ id: o.id, count: o.count, canWin: o.canWin })),
-      vote.value.minimumVotes,
-      vote.value.maxWinners
-    ).winnerIds,
-  ]
-})
-
-const displayWinnerIds = computed(() =>
-  streamWinnerIds.value.length > 0 ? streamWinnerIds.value : initialWinnerIds.value
-)
-
 const displayMinimumVotes = computed(
   () => streamMinimumVotes.value ?? vote.value?.minimumVotes ?? null
 )
+
+const displayMaxWinners = computed(() => streamMaxWinners.value ?? vote.value?.maxWinners ?? null)
+
+const displayWinnerIds = computed(() => {
+  if (isOpen.value || displayOptions.value.length === 0) return []
+
+  return [
+    ...calculateWinners(
+      displayOptions.value.map((o) => ({ id: o.id, count: o.count, canWin: o.canWin ?? true })),
+      displayMinimumVotes.value,
+      displayMaxWinners.value
+    ).winnerIds,
+  ]
+})
 
 // Labels for winner options (for the list display)
 const winnerOptions = computed(() =>
@@ -172,6 +188,7 @@ useSeoMeta({
         :options="displayOptions"
         :winner-ids="displayWinnerIds"
         :minimum-votes="displayMinimumVotes"
+        :is-open="isOpen"
       />
       <div v-else class="py-12 text-center">
         <UIcon name="i-tabler-chart-bar-off" class="text-muted mx-auto size-12" />

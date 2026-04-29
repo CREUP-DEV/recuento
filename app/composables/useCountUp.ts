@@ -40,6 +40,15 @@ export function useCountUp(target: Ref<number> | number, options?: { duration?: 
     rafId = requestAnimationFrame(tick)
   }
 
+  function reset() {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId)
+      rafId = null
+    }
+    hasAnimated.value = false
+    displayValue.value = 0
+  }
+
   onUnmounted(() => {
     if (rafId !== null) {
       cancelAnimationFrame(rafId)
@@ -47,5 +56,5 @@ export function useCountUp(target: Ref<number> | number, options?: { duration?: 
     }
   })
 
-  return { displayValue, start, hasAnimated }
+  return { displayValue, start, hasAnimated, reset }
 }

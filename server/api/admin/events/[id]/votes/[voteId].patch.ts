@@ -2,8 +2,10 @@ import { eq } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db } from '#db'
 import { votes } from '#db/schema'
+import { pickDefined } from '#server-utils/pickDefined'
 import { requireVoteInAdminScope } from '#server-utils/adminVoteScope'
 import { emitVoteStatusChange } from '#server-utils/sseManager'
+import { emitVoteCountUpdate } from '#server-utils/voteCountEmitter'
 import { updateVoteSchema } from '#validation/votes'
 
 export default defineEventHandler(async (event) => {
@@ -32,12 +34,13 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const updateData: Record<string, unknown> = {}
-  if (data.name !== undefined) updateData.name = data.name
-  if (data.visible !== undefined) updateData.visible = data.visible
-  if (data.minimumVotes !== undefined) updateData.minimumVotes = data.minimumVotes
-  if (data.maxWinners !== undefined) updateData.maxWinners = data.maxWinners
-  if (data.confettiEnabled !== undefined) updateData.confettiEnabled = data.confettiEnabled
+  const updateData = pickDefined(data, [
+    'name',
+    'visible',
+    'minimumVotes',
+    'maxWinners',
+    'confettiEnabled',
+  ])
 
   if (Object.keys(updateData).length === 0) {
     throw createError({
@@ -58,7 +61,19 @@ export default defineEventHandler(async (event) => {
       voteId: updated.id,
       eventId,
       open: updated.open,
+      visible: updated.visible,
+      startedAt: updated.startedAt?.toISOString() ?? null,
+      endedAt: updated.endedAt?.toISOString() ?? null,
     })
+  }
+
+  if (
+    !updated.open &&
+    (data.minimumVotes !== undefined ||
+      data.maxWinners !== undefined ||
+      data.confettiEnabled !== undefined)
+  ) {
+    emitVoteCountUpdate(voteId)
   }
 
   return { data: updated }

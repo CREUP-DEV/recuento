@@ -3,6 +3,8 @@ export interface VoteCountUpdateEvent {
   voteId: string
   eventId: string
   minimumVotes: number | null
+  maxWinners: number | null
+  confettiEnabled: boolean
   options: Array<{
     id: string
     label: string
@@ -18,6 +20,7 @@ export interface VoteStatusChangeEvent {
   voteId: string
   eventId: string
   open: boolean
+  visible: boolean
   startedAt: string | null
   endedAt: string | null
 }

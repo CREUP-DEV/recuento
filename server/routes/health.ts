@@ -2,7 +2,7 @@ import { getRequestHeader } from 'h3'
 import { getDatabasePoolStats } from '../db'
 
 export default defineEventHandler(async (event) => {
-  // Reject proxied requests — health checks must be direct.
+  // Only allow direct Docker/internal requests — NGINX always sets X-Forwarded-For.
   if (getRequestHeader(event, 'x-forwarded-for')) {
     throw createError({ statusCode: 404, message: 'Not found' })
   }
@@ -11,15 +11,13 @@ export default defineEventHandler(async (event) => {
 
   try {
     const stats = getDatabasePoolStats()
-    checks.database = stats.errorCount > 0 && stats.lastErrorAt ? 'degraded' : 'ok'
+    checks.database = stats.errorCount > 0 && stats.lastErrorAt ? 'error' : 'ok'
   } catch {
     checks.database = 'error'
   }
 
   const hasError = Object.values(checks).some((v) => v === 'error')
-  const hasDegraded = Object.values(checks).some((v) => v === 'degraded')
-
-  const status = hasError ? 'error' : hasDegraded ? 'degraded' : 'ok'
+  const status = hasError ? 'error' : 'ok'
 
   setResponseStatus(event, status === 'error' ? 503 : 200)
 

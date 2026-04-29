@@ -34,13 +34,16 @@ async function deleteEvent() {
 }
 
 async function toggleVisibility(ev: { id: string; visible: boolean }) {
+  const newVisible = !ev.visible
+  const entry = eventsData.value?.data?.find((e) => e.id === ev.id)
+  if (entry) entry.visible = newVisible
   try {
     await $fetch(`/api/admin/events/${ev.id}`, {
       method: 'PATCH',
-      body: { visible: !ev.visible },
+      body: { visible: newVisible },
     })
-    await refresh()
   } catch (error: unknown) {
+    if (entry) entry.visible = ev.visible
     const apiMessage = (error as { data?: { message?: string } })?.data?.message
     toast.add({
       title: t('admin.toasts.visibilityError'),

@@ -38,7 +38,7 @@ async function switchLocale(code: 'es' | 'en') {
       <NuxtLink
         v-if="activeVote"
         :to="localePath(`/votes/${activeVote.id}`)"
-        class="border-default/80 ml-1 hidden items-center gap-2 rounded-full border bg-white/80 px-3 py-1.5 text-xs font-semibold text-[color:var(--ui-primary)] shadow-sm transition hover:bg-white sm:flex dark:bg-black/20 dark:hover:bg-black/30"
+        class="border-default/80 ml-1 flex items-center gap-2 rounded-full border bg-white/80 px-2 py-1.5 text-xs font-semibold text-[color:var(--ui-primary)] shadow-sm transition hover:bg-white sm:px-3 dark:bg-black/20 dark:hover:bg-black/30"
         :aria-label="t('accessibility.liveVoteIndicator')"
       >
         <span class="relative flex size-2.5">
@@ -47,7 +47,7 @@ async function switchLocale(code: 'es' | 'en') {
           />
           <span class="relative inline-flex size-2.5 rounded-full bg-[color:var(--ui-primary)]" />
         </span>
-        {{ t('nav.live') }}
+        <span class="hidden sm:inline">{{ t('nav.live') }}</span>
       </NuxtLink>
 
       <div class="flex-1" />

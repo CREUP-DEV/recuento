@@ -1,4 +1,4 @@
-import type { SSEEvent } from '~~/shared/types/sseEvents'
+import type { SerializedSSEEvent } from '../../utils/sseManager'
 import {
   onSSEEvent,
   onSSEShutdown,
@@ -17,7 +17,11 @@ export default defineEventHandler(async (event) => {
   }
 
   const query = getQuery(event)
-  const filterVoteId = typeof query.voteId === 'string' ? query.voteId : null
+  const rawVoteId = typeof query.voteId === 'string' ? query.voteId : null
+  if (rawVoteId !== null && !/^[a-z0-9]{20,32}$/.test(rawVoteId)) {
+    throw createError({ statusCode: 400, message: 'Invalid voteId filter' })
+  }
+  const filterVoteId = rawVoteId
 
   setResponseHeaders(event, {
     'Content-Type': 'text/event-stream',
@@ -38,10 +42,10 @@ export default defineEventHandler(async (event) => {
     }
   }, 30_000)
 
-  const handler = (data: SSEEvent) => {
+  const handler = (data: SerializedSSEEvent) => {
     if (filterVoteId && data.voteId !== filterVoteId) return
     try {
-      writer.write(`event: ${data.type}\ndata: ${JSON.stringify(data)}\n\n`)
+      writer.write(`event: ${data.type}\ndata: ${data.json}\n\n`)
     } catch {
       // Client disconnected
     }

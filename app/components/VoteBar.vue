@@ -13,7 +13,7 @@ const pct = computed(() => (props.total > 0 ? (props.count / props.total) * 100 
 const barStyle = computed(() => ({
   width: `${pct.value}%`,
   backgroundColor: props.color ?? 'var(--color-creup-blue-400)',
-  minWidth: props.count > 0 ? '2rem' : '0',
+  minWidth: props.count > 0 ? '0.25rem' : '0',
 }))
 </script>
 

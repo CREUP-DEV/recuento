@@ -1,4 +1,4 @@
-import { asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 import { db } from '#db'
 import { votes, voteOptions } from '#db/schema'
 import { requireVoteInAdminScope } from '#server-utils/adminVoteScope'
@@ -22,10 +22,10 @@ export default defineEventHandler(async (event) => {
     const [updated] = await tx
       .update(votes)
       .set({ open: false, endedAt: sql`now()` })
-      .where(eq(votes.id, voteId))
+      .where(and(eq(votes.id, voteId), eq(votes.open, true)))
       .returning()
 
-    if (!updated) throw createError({ statusCode: 500, message: 'Error al cerrar la votación' })
+    if (!updated) throw createError({ statusCode: 409, message: 'La votación ya está cerrada' })
 
     const options = await tx
       .select()
@@ -47,6 +47,7 @@ export default defineEventHandler(async (event) => {
     voteId: result.updated.id,
     eventId: result.updated.eventId,
     open: false,
+    visible: true,
     startedAt: result.updated.startedAt?.toISOString() ?? null,
     endedAt: result.updated.endedAt?.toISOString() ?? null,
   })

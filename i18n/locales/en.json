@@ -125,6 +125,7 @@
     "closeVote": "Close vote",
     "uploadBanner": "Upload banner",
     "changeBanner": "Change banner",
+    "removeBanner": "Remove banner",
     "name": "Name",
     "visible": "Visible",
     "hidden": "Hidden",
@@ -207,7 +208,11 @@
       "fieldsRequired": "All fields are required",
       "voteSettingsUpdated": "Vote settings updated",
       "voteSettingsError": "Error updating settings",
-      "canWinError": "Error updating option"
+      "canWinError": "Error updating option",
+      "bannerRemoved": "Banner removed",
+      "historyCleared": "Undo history cleared",
+      "openVoteConflict": "Vote already open: {name}",
+      "goToVote": "Go to event"
     }
   },
   "auth": {
@@ -229,7 +234,9 @@
     "expandSidebar": "Expand sidebar",
     "winner": "Winner",
     "thresholdReached": "Minimum threshold reached",
-    "doesNotCount": "Does not count"
+    "doesNotCount": "Does not count",
+    "voteCountIncreased": "{option} increases to {count} votes",
+    "voteCountDecreased": "{option} decreases to {count} votes"
   },
   "common": {
     "loading": "Loading…",

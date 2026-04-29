@@ -5,6 +5,9 @@ interface LogMeta {
 }
 
 interface LogEvent {
+  context?: {
+    requestId?: string
+  }
   headers?: Headers | { get(name: string): string | null | undefined }
   method?: string
   node?: {
@@ -146,7 +149,7 @@ function buildLogPayload(level: LogLevel, scope: string, meta: LogMeta = {}, eve
   if (event) {
     payload.method = event.method ?? null
     payload.path = getEventPath(event)
-    payload.requestId = getEventHeader(event, 'x-request-id')
+    payload.requestId = event.context?.requestId ?? getEventHeader(event, 'x-request-id')
   }
 
   if ('error' in payload) {
