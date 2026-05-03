@@ -14,11 +14,24 @@ interface PublicEventListResponse {
   }>
 }
 
-const { data: activeData } = await useFetch<{ data: ActiveVoteData | null }>('/api/votes/active')
+const { data: activeData, refresh: refreshActiveVote } = await useFetch<{
+  data: ActiveVoteData | null
+}>('/api/votes/active')
 const activeVote = computed(() => activeData.value?.data ?? null)
 
-const { data: eventsData } = await useFetch<PublicEventListResponse>('/api/events')
+const { data: eventsData, refresh: refreshEvents } =
+  await useFetch<PublicEventListResponse>('/api/events')
 const events = computed(() => eventsData.value?.data ?? [])
+
+useSSEConnection({
+  url: '/api/sse/votes',
+  onEvent(type) {
+    if (type === 'vote-status-change' || type === 'content-changed') {
+      void refreshActiveVote()
+      void refreshEvents()
+    }
+  },
+})
 
 useSeoMeta({
   title: t('app.title'),

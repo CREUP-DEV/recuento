@@ -3,7 +3,7 @@ import { db } from '#db'
 import { events, votes } from '#db/schema'
 import { deleteBannerFile } from '#server-utils/adminImageUpload'
 import { pickDefined } from '#server-utils/pickDefined'
-import { emitVoteStatusChange } from '#server-utils/sseManager'
+import { emitContentChanged, emitVoteStatusChange } from '#server-utils/sseManager'
 import { updateEventSchema, validateEventDateRange } from '#validation/events'
 
 export default defineEventHandler(async (event) => {
@@ -82,6 +82,8 @@ export default defineEventHandler(async (event) => {
       })
     }
   }
+
+  emitContentChanged({ type: 'content-changed', scope: 'event', eventId: id })
 
   return { data: updated }
 })

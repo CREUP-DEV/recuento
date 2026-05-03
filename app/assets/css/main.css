@@ -226,6 +226,14 @@ html {
   opacity: 0.18 !important;
 }
 
+.hover-card:has(> a:hover) .event-title {
+  color: var(--color-creup-red-600);
+}
+
+.dark .hover-card:has(> a:hover) .event-title {
+  color: var(--color-creup-red-400);
+}
+
 /* ─── Skip links ──────────────────────────────────────────────────────────── */
 
 .skip-link {

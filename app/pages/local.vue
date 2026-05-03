@@ -94,6 +94,18 @@ const { flashingOptionId, flashOption } = useVoteKeyboard(
   redoLastVote
 )
 
+function incrementAndFlash(optionId: string) {
+  incrementOption(optionId)
+  flashOption(optionId)
+}
+
+function decrementAndFlash(optionId: string) {
+  const option = state.value.options.find((entry) => entry.id === optionId)
+  if (!option || option.count <= 0) return
+  decrementOption(optionId)
+  flashOption(optionId)
+}
+
 const isEditingName = ref(false)
 const nameInput = ref(state.value.name)
 
@@ -251,7 +263,7 @@ async function copyResults() {
     </div>
 
     <!-- Header -->
-    <div class="mb-8 flex items-start justify-between gap-4">
+    <div class="mb-5 flex items-start justify-between gap-4">
       <div class="min-w-0 flex-1">
         <!-- Editable name -->
         <h1
@@ -294,8 +306,7 @@ async function copyResults() {
           "
         />
 
-        <div class="mt-3 flex items-center gap-3">
-          <VoteStatus :open="state.open" />
+        <div class="mt-3 flex flex-wrap items-center gap-2">
           <span class="text-muted flex items-center gap-1 text-sm">
             <UIcon name="i-tabler-device-floppy" class="size-4 shrink-0" aria-hidden="true" />
             {{ t('localVote.description') }}
@@ -304,7 +315,7 @@ async function copyResults() {
       </div>
 
       <!-- Total -->
-      <div class="shrink-0 text-right">
+      <div v-if="phase === 'voting' || phase === 'results'" class="shrink-0 text-right">
         <p class="text-muted text-base">{{ t('localVote.total') }}</p>
         <p class="font-mono text-4xl font-bold tabular-nums">{{ totalVotes }}</p>
       </div>
@@ -408,6 +419,13 @@ async function copyResults() {
         ref="closedOptionsContainerRef"
         class="relative z-10 p-3 sm:p-4"
       >
+        <p
+          v-if="phase === 'setup' || phase === 'closedEmpty'"
+          class="text-muted mb-3 flex items-start gap-2 text-sm"
+        >
+          <UIcon name="i-tabler-toggle-right" class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <span>{{ t('localVote.optionSwitchHelp') }}</span>
+        </p>
         <draggable
           :list="state.options"
           item-key="id"
@@ -433,10 +451,12 @@ async function copyResults() {
               :threshold-reached="getThresholdReached(option.id, option.count, option.canWin)"
               :is-winner="localWinners.has(option.id)"
               :results-mode="phase === 'results'"
+              :hide-count="phase === 'setup' || phase === 'closedEmpty'"
+              :hide-progress="phase === 'setup' || phase === 'closedEmpty'"
               size="md"
               @delete="confirmDeleteOption(option.id)"
-              @increment="incrementOption(option.id)"
-              @decrement="decrementOption(option.id)"
+              @increment="incrementAndFlash(option.id)"
+              @decrement="decrementAndFlash(option.id)"
               @set-count="(count) => setCount(option.id, count)"
               @update-color="(color) => updateColor(option.id, color)"
               @update-can-win="(canWin) => updateCanWin(option.id, canWin)"
@@ -538,6 +558,16 @@ async function copyResults() {
 
       <!-- Results phase actions -->
       <template v-if="phase === 'results'">
+        <UButton
+          icon="i-tabler-player-play"
+          color="success"
+          variant="subtle"
+          class="transition-transform duration-200 active:scale-95"
+          @click="toggleVoteOpen"
+        >
+          {{ t('localVote.reopen') }}
+        </UButton>
+
         <UButton icon="i-tabler-copy" variant="subtle" color="neutral" @click="copyResults">
           {{ t('localVote.copyResults') }}
         </UButton>
@@ -563,16 +593,6 @@ async function copyResults() {
 
       <!-- Setup / closedEmpty actions -->
       <template v-if="phase === 'setup' || phase === 'closedEmpty'">
-        <UButton
-          icon="i-tabler-rotate"
-          variant="subtle"
-          color="neutral"
-          :disabled="totalVotes === 0"
-          @click="showResetConfirm = true"
-        >
-          {{ t('localVote.resetCounts') }}
-        </UButton>
-
         <UButton
           icon="i-tabler-copy"
           variant="subtle"
@@ -633,7 +653,7 @@ async function copyResults() {
                 :aria-label="t('localVote.incrementOption', { option: option.label })"
                 :aria-keyshortcuts="option.shortcut ?? undefined"
                 :title="option.label"
-                @click="incrementOption(option.id)"
+                @click="incrementAndFlash(option.id)"
               >
                 <span aria-hidden="true">{{ option.shortcut ?? '?' }}</span>
               </button>

@@ -2,6 +2,7 @@ import { and, asc, eq } from 'drizzle-orm'
 import { db } from '#db'
 import { voteOptions } from '#db/schema'
 import { requireOptionInAdminScope, requireVoteInAdminScope } from '#server-utils/adminVoteScope'
+import { emitContentChanged } from '#server-utils/sseManager'
 import { getVoteShortcut } from '~~/shared/constants/voteOptions'
 
 export default defineEventHandler(async (event) => {
@@ -50,6 +51,8 @@ export default defineEventHandler(async (event) => {
   if (!deleted) {
     throw createError({ statusCode: 404, message: 'Opción no encontrada' })
   }
+
+  emitContentChanged({ type: 'content-changed', scope: 'options', eventId, voteId })
 
   return { success: true }
 })

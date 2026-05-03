@@ -3,6 +3,7 @@ import { asc, eq, sql } from 'drizzle-orm'
 import { db } from '#db'
 import { voteOptions } from '#db/schema'
 import { requireVoteInAdminScope } from '#server-utils/adminVoteScope'
+import { emitContentChanged } from '#server-utils/sseManager'
 import { emitVoteCountUpdate } from '#server-utils/voteCountEmitter'
 import { getVoteShortcut } from '~~/shared/constants/voteOptions'
 
@@ -92,6 +93,7 @@ export default defineEventHandler(async (event) => {
   })
 
   emitVoteCountUpdate(voteId)
+  emitContentChanged({ type: 'content-changed', scope: 'options', eventId, voteId })
 
   return { data: updated }
 })

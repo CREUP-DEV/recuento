@@ -6,7 +6,7 @@ import {
   getBannerAbsolutePath,
   getBannerFilenameFromPublicPath,
 } from '#server-utils/adminImageUpload'
-import { emitVoteStatusChange } from '#server-utils/sseManager'
+import { emitContentChanged, emitVoteStatusChange } from '#server-utils/sseManager'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -51,6 +51,8 @@ export default defineEventHandler(async (event) => {
       endedAt: new Date().toISOString(),
     })
   }
+
+  emitContentChanged({ type: 'content-changed', scope: 'events', eventId: id })
 
   return { success: true }
 })

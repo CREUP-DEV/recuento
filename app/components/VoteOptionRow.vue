@@ -24,6 +24,9 @@ const props = defineProps<{
   thresholdReached?: boolean
   isWinner?: boolean
   resultsMode?: boolean
+  hideCount?: boolean
+  hideProgress?: boolean
+  hideCanWinLabel?: boolean
   /** 'sm' = admin panel, 'md' = local vote (default: 'sm') */
   size?: 'sm' | 'md'
 }>()
@@ -70,6 +73,7 @@ const canShowVoteControls = computed(() => Boolean(props.active) && !props.resul
 const canShowDelete = computed(() => !props.active && !props.resultsMode)
 const canShowColorControls = computed(() => !props.active && !props.resultsMode)
 const canShowCanWin = computed(() => !props.active && !props.resultsMode)
+const canShowCount = computed(() => !props.hideCount)
 
 watch(
   () => props.option.count,
@@ -207,7 +211,7 @@ watch(isEditingCount, async (editing) => {
       <!-- Label + winner / canWin -->
       <div class="flex min-w-0 flex-1 items-center gap-2">
         <span
-          class="min-w-0 truncate text-left font-medium"
+          class="wrap-break-words min-w-0 text-left leading-snug font-medium whitespace-normal"
           :class="[isMd ? 'text-base' : 'text-sm']"
         >
           {{ option.label }}
@@ -222,7 +226,10 @@ watch(isEditingCount, async (editing) => {
         <span v-else-if="active && !option.canWin" class="text-muted shrink-0 text-xs">
           {{ t('admin.cannotWin') }}
         </span>
-        <div v-if="canShowCanWin" class="ml-auto flex shrink-0 items-center gap-1.5">
+        <div
+          v-if="canShowCanWin"
+          class="ml-auto flex min-h-9 shrink-0 items-center gap-1.5 self-center"
+        >
           <USwitch
             :model-value="option.canWin"
             size="xs"
@@ -230,7 +237,7 @@ watch(isEditingCount, async (editing) => {
             :aria-label="t('admin.toggleCanWin')"
             @update:model-value="(val: boolean) => emit('update-can-win', val)"
           />
-          <span class="text-muted hidden text-xs select-none sm:inline">
+          <span v-if="!hideCanWinLabel" class="text-muted hidden text-xs select-none sm:inline">
             {{ option.canWin ? t('admin.canWin') : t('admin.cannotWin') }}
           </span>
         </div>
@@ -290,7 +297,7 @@ watch(isEditingCount, async (editing) => {
           />
         </div>
         <div
-          v-else
+          v-else-if="canShowCount"
           key="count-display"
           class="bg-muted/70 rounded-full px-3 py-1 text-center font-mono font-bold tabular-nums"
           :class="isMd ? 'min-w-14 text-base' : 'min-w-12 text-sm'"
@@ -301,7 +308,7 @@ watch(isEditingCount, async (editing) => {
 
       <!-- Delete button -->
       <Transition name="vote-controls">
-        <div v-if="canShowDelete" class="flex">
+        <div v-if="canShowDelete" class="flex min-h-9 items-center self-center">
           <UButton
             icon="i-tabler-trash"
             variant="ghost"
@@ -317,6 +324,7 @@ watch(isEditingCount, async (editing) => {
     </div>
 
     <VoteBar
+      v-if="!hideProgress"
       :count="option.count"
       :total="total"
       :color="option.color ?? defaultColor"

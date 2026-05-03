@@ -3,6 +3,7 @@ import { db } from '#db'
 import { voteOptions } from '#db/schema'
 import { pickDefined } from '#server-utils/pickDefined'
 import { requireOptionInAdminScope, requireVoteInAdminScope } from '#server-utils/adminVoteScope'
+import { emitContentChanged } from '#server-utils/sseManager'
 import { emitVoteCountUpdate } from '#server-utils/voteCountEmitter'
 import { updateOptionSchema } from '#validation/options'
 
@@ -81,6 +82,8 @@ export default defineEventHandler(async (event) => {
   ) {
     await emitVoteCountUpdate(voteId)
   }
+
+  emitContentChanged({ type: 'content-changed', scope: 'options', eventId, voteId })
 
   return { data: updated }
 })

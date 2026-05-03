@@ -35,4 +35,15 @@ export interface VoteClosedEvent {
   confettiEnabled: boolean
 }
 
-export type SSEEvent = VoteCountUpdateEvent | VoteStatusChangeEvent | VoteClosedEvent
+export interface ContentChangedEvent {
+  type: 'content-changed'
+  scope: 'events' | 'event' | 'vote' | 'options'
+  eventId?: string
+  voteId?: string
+}
+
+export type SSEEvent =
+  | VoteCountUpdateEvent
+  | VoteStatusChangeEvent
+  | VoteClosedEvent
+  | ContentChangedEvent

@@ -35,12 +35,18 @@ interface AdminEventData {
 const { t } = useI18n()
 const toast = useToast()
 const route = useRoute()
+const localePath = useLocalePath()
 const eventId = route.params.id as string
 
 const { data: eventData, refresh } = await useFetch<{ data: AdminEventData }>(
   `/api/admin/events/${eventId}`
 )
 const ev = computed(() => eventData.value?.data)
+const expandedVoteIds = ref<Set<string>>(new Set())
+const allVotesExpanded = computed(() => {
+  const votes = ev.value?.votes ?? []
+  return votes.length > 0 && votes.every((vote) => expandedVoteIds.value.has(vote.id))
+})
 
 if (!ev.value) {
   throw createError({ statusCode: 404, statusMessage: 'Evento no encontrado' })
@@ -169,22 +175,45 @@ async function removeBanner() {
 
 const newVoteName = ref('')
 const isAddingVote = ref(false)
+const showDeleteEventModal = ref(false)
+const isDeletingEvent = ref(false)
 
 async function addVote() {
   if (!newVoteName.value.trim()) return
   isAddingVote.value = true
   try {
-    await $fetch(`/api/admin/events/${eventId}/votes`, {
+    const { data } = await $fetch<{ data: AdminEventVote }>(`/api/admin/events/${eventId}/votes`, {
       method: 'POST',
       body: { name: newVoteName.value },
     })
     toast.add({ title: t('admin.toasts.voteCreated'), color: 'success' })
     newVoteName.value = ''
+    expandedVoteIds.value = new Set([data.id])
     await refresh()
+    await nextTick()
+    setTimeout(() => {
+      document
+        .getElementById(`admin-vote-card-${data.id}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 50)
   } catch {
     toast.add({ title: t('admin.toasts.voteCreateError'), color: 'error' })
   } finally {
     isAddingVote.value = false
+  }
+}
+
+async function deleteEvent() {
+  isDeletingEvent.value = true
+  try {
+    await $fetch(`/api/admin/events/${eventId}`, { method: 'DELETE' })
+    toast.add({ title: t('admin.toasts.eventDeleted'), color: 'success' })
+    await navigateTo(localePath('/admin/events'))
+  } catch {
+    toast.add({ title: t('admin.toasts.eventDeleteError'), color: 'error' })
+  } finally {
+    isDeletingEvent.value = false
+    showDeleteEventModal.value = false
   }
 }
 
@@ -217,12 +246,26 @@ function patchOption(voteId: string, optionId: string, fields: Partial<AdminEven
   }
 }
 
+function toggleVotePanel(voteId: string) {
+  const next = new Set(expandedVoteIds.value)
+  if (next.has(voteId)) next.delete(voteId)
+  else next.add(voteId)
+  expandedVoteIds.value = next
+}
+
+function toggleAllVotePanels() {
+  if (!ev.value?.votes.length) return
+  expandedVoteIds.value = allVotesExpanded.value
+    ? new Set()
+    : new Set(ev.value.votes.map((vote) => vote.id))
+}
+
 // ─── SSE: refresh on external vote-status-change ──────────────────────────────
 
 useSSEConnection({
   url: '/api/sse/votes',
   onEvent(type, data) {
-    if (type === 'vote-status-change') {
+    if (type === 'vote-status-change' || type === 'content-changed') {
       void refresh()
       return
     }
@@ -239,7 +282,26 @@ useSSEConnection({
 
 <template>
   <div v-if="ev" class="animate-fade-slide-up space-y-8">
-    <h1 class="text-2xl font-bold">{{ ev.name }}</h1>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <NuxtLink
+          :to="localePath('/admin/events')"
+          class="text-muted hover:text-foreground mb-2 inline-flex items-center gap-1 text-sm transition-colors"
+        >
+          <UIcon name="i-tabler-arrow-left" class="size-4" aria-hidden="true" />
+          {{ t('admin.viewEvents') }}
+        </NuxtLink>
+        <h1 class="text-2xl font-bold">{{ ev.name }}</h1>
+      </div>
+      <UButton
+        icon="i-tabler-trash"
+        color="error"
+        variant="subtle"
+        @click="showDeleteEventModal = true"
+      >
+        {{ t('admin.deleteEvent') }}
+      </UButton>
+    </div>
 
     <!-- Event details card -->
     <div class="border-default bg-default rounded-xl border p-6 shadow-sm">
@@ -323,7 +385,20 @@ useSSEConnection({
 
     <!-- Votes section -->
     <div class="space-y-4">
-      <h2 class="text-lg font-semibold">{{ t('admin.votesSection') }}</h2>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 class="text-lg font-semibold">{{ t('admin.votesSection') }}</h2>
+        <UButton
+          v-if="ev.votes?.length"
+          icon="i-tabler-layout-list"
+          variant="subtle"
+          color="neutral"
+          size="sm"
+          :aria-expanded="allVotesExpanded"
+          @click="toggleAllVotePanels"
+        >
+          {{ allVotesExpanded ? t('admin.collapseAllVotes') : t('admin.expandAllVotes') }}
+        </UButton>
+      </div>
 
       <!-- Add vote form -->
       <div
@@ -353,6 +428,8 @@ useSSEConnection({
         :key="vote.id"
         :vote="vote"
         :event-id="eventId"
+        :expanded="expandedVoteIds.has(vote.id)"
+        @toggle="toggleVotePanel(vote.id)"
         @refresh="refresh"
         @update-vote="(fields) => patchVote(vote.id, fields)"
         @update-option="(optionId, fields) => patchOption(vote.id, optionId, fields)"
@@ -362,5 +439,22 @@ useSSEConnection({
         <p class="text-muted">{{ t('admin.noVotesYet') }}</p>
       </div>
     </div>
+
+    <UModal v-model:open="showDeleteEventModal">
+      <template #content>
+        <div class="p-6">
+          <h3 class="text-lg font-semibold">{{ t('admin.deleteEvent') }}</h3>
+          <p class="text-muted mt-2">{{ t('admin.deleteEventConfirm') }}</p>
+          <div class="mt-6 flex justify-end gap-3">
+            <UButton variant="ghost" color="neutral" @click="showDeleteEventModal = false">
+              {{ t('admin.cancel') }}
+            </UButton>
+            <UButton color="error" :loading="isDeletingEvent" @click="deleteEvent">
+              {{ t('admin.delete') }}
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>

@@ -67,10 +67,16 @@ async function toggleVisibility(ev: { id: string; visible: boolean }) {
       <div
         v-for="ev in events"
         :key="ev.id"
-        class="border-default bg-default flex items-center gap-4 rounded-xl border p-4 shadow-sm transition hover:shadow"
+        class="border-default bg-default hover-card group relative grid gap-3 rounded-xl border p-3 shadow-sm transition hover:shadow sm:flex sm:items-center sm:gap-4 sm:p-4"
       >
         <!-- Banner thumbnail -->
-        <div class="bg-muted aspect-video w-28 shrink-0 overflow-hidden rounded-lg">
+        <NuxtLink
+          :to="localePath(`/admin/events/${ev.id}`)"
+          class="focus-visible:ring-primary/60 absolute inset-0 rounded-xl focus-visible:ring-2 focus-visible:outline-none"
+          :aria-label="t('admin.openEvent', { name: ev.name })"
+        />
+
+        <div class="bg-muted aspect-video w-full overflow-hidden rounded-lg sm:w-28 sm:shrink-0">
           <NuxtImg
             v-if="ev.banner"
             :src="ev.banner"
@@ -86,12 +92,9 @@ async function toggleVisibility(ev: { id: string; visible: boolean }) {
 
         <!-- Info -->
         <div class="min-w-0 flex-1">
-          <NuxtLink
-            :to="localePath(`/admin/events/${ev.id}`)"
-            class="hover:text-creup-red-600 dark:hover:text-creup-red-400 font-semibold transition-colors"
-          >
+          <p class="event-title leading-snug font-semibold break-words transition-colors">
             {{ ev.name }}
-          </NuxtLink>
+          </p>
           <p class="text-sm text-neutral-600 dark:text-neutral-400">
             {{ formatDateShort(ev.startDate) }} - {{ formatDateShort(ev.endDate) }} ·
             {{ $t('events.votesCount', { count: ev.votes?.length ?? 0 }, ev.votes?.length ?? 0) }}
@@ -99,7 +102,9 @@ async function toggleVisibility(ev: { id: string; visible: boolean }) {
         </div>
 
         <!-- Actions -->
-        <div class="flex items-center gap-2">
+        <div
+          class="relative z-10 flex w-full flex-wrap items-center justify-between gap-2 sm:ml-auto sm:w-auto sm:shrink-0 sm:justify-start"
+        >
           <UButton
             :color="ev.visible ? 'success' : 'neutral'"
             variant="subtle"
@@ -109,14 +114,6 @@ async function toggleVisibility(ev: { id: string; visible: boolean }) {
           >
             {{ ev.visible ? t('admin.visible') : t('admin.hidden') }}
           </UButton>
-          <UButton
-            :to="localePath(`/admin/events/${ev.id}`)"
-            icon="i-tabler-edit"
-            variant="ghost"
-            color="neutral"
-            size="sm"
-            :aria-label="t('admin.editEvent')"
-          />
           <UButton
             icon="i-tabler-trash"
             variant="ghost"

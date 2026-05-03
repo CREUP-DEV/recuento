@@ -9,6 +9,7 @@ const eventId = route.params.id as string
 
 const { data, error, status, refresh } = await useFetch(`/api/events/${eventId}`)
 const ev = computed(() => data.value?.data)
+const eventVotes = computed(() => ev.value?.votes ?? [])
 
 function getVoteWinnerIds(vote: {
   open: boolean
@@ -34,11 +35,19 @@ useSeoMeta({
   title: () => ev.value?.name ?? t('events.title'),
 })
 
-onMounted(() => {
-  if (import.meta.server) return
-  const sse = new EventSource('/api/sse/votes')
-  sse.addEventListener('vote-status-change', () => refresh())
-  onBeforeUnmount(() => sse.close())
+useSSEConnection({
+  url: '/api/sse/votes',
+  onEvent(type, payload) {
+    if (type === 'vote-status-change') {
+      refresh()
+      return
+    }
+
+    if (type === 'content-changed') {
+      const data = payload as { eventId?: string }
+      if (!data.eventId || data.eventId === eventId) refresh()
+    }
+  },
 })
 </script>
 
@@ -78,11 +87,35 @@ onMounted(() => {
     <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
       <h2 class="font-heading mb-6 text-2xl font-bold">{{ t('votes.title') }}</h2>
 
-      <div v-if="ev.votes && ev.votes.length > 0" class="stagger-list space-y-6">
+      <nav
+        v-if="eventVotes.length > 0"
+        class="border-default bg-default mb-6 rounded-xl border p-3 shadow-sm sm:p-4"
+        :aria-label="t('votes.jumpToVote')"
+      >
+        <p class="text-muted mb-3 text-sm font-medium">{{ t('votes.jumpToVote') }}</p>
+        <div class="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
+          <a
+            v-for="vote in eventVotes"
+            :key="vote.id"
+            :href="`#vote-${vote.id}`"
+            class="border-default hover:border-primary/40 hover:bg-muted/40 focus-visible:ring-primary/60 inline-flex max-w-64 shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <span
+              v-if="vote.open"
+              class="size-2 shrink-0 rounded-full bg-green-500"
+              aria-hidden="true"
+            />
+            <span class="truncate">{{ vote.name }}</span>
+          </a>
+        </div>
+      </nav>
+
+      <div v-if="eventVotes.length > 0" class="stagger-list space-y-6">
         <div
-          v-for="vote in ev.votes"
+          v-for="vote in eventVotes"
+          :id="`vote-${vote.id}`"
           :key="vote.id"
-          class="border-default bg-default overflow-hidden rounded-xl border shadow-sm"
+          class="border-default bg-default scroll-mt-24 overflow-hidden rounded-xl border shadow-sm"
         >
           <div class="border-default flex items-center justify-between gap-4 border-b px-6 py-4">
             <div class="flex items-center gap-3">

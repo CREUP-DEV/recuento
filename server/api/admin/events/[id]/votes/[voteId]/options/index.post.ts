@@ -3,6 +3,7 @@ import { db } from '#db'
 import { voteOptions } from '#db/schema'
 import { DEFAULT_OPTION_COLORS, VOTE_SHORTCUTS } from '~~/shared/constants/voteOptions'
 import { requireVoteInAdminScope } from '#server-utils/adminVoteScope'
+import { emitContentChanged } from '#server-utils/sseManager'
 import { createOptionSchema } from '#validation/options'
 
 export default defineEventHandler(async (event) => {
@@ -60,6 +61,8 @@ export default defineEventHandler(async (event) => {
 
     return inserted
   })
+
+  emitContentChanged({ type: 'content-changed', scope: 'options', eventId, voteId })
 
   return { data: created }
 })

@@ -38,10 +38,12 @@ interface Vote {
 const props = defineProps<{
   vote: Vote
   eventId: string
+  expanded: boolean
 }>()
 
 const emit = defineEmits<{
   refresh: []
+  toggle: []
   'update-vote': [fields: Partial<Vote>]
   'update-option': [optionId: string, fields: Partial<VoteOption>]
 }>()
@@ -86,6 +88,15 @@ function getThresholdReached(option: VoteOption) {
 }
 const totalVotes = computed(() =>
   displayOptions.value.reduce((sum, option) => sum + option.count, 0)
+)
+type AdminVotePhase = 'setup' | 'voting' | 'results'
+const votePhase = computed((): AdminVotePhase => {
+  if (props.vote.open) return 'voting'
+  if (totalVotes.value > 0) return 'results'
+  return 'setup'
+})
+const openActionLabel = computed(() =>
+  votePhase.value === 'results' ? t('admin.reopenVote') : t('admin.openVote')
 )
 const canUndo = computed(() => voteHistory.value.length > 0)
 const canRedo = computed(() => redoHistory.value.length > 0)
@@ -159,6 +170,7 @@ const { flashingOptionId, flashOption } = useVoteKeyboard(
 // ─── Vote actions ─────────────────────────────────────────────────────────────
 
 const showDeleteVoteModal = ref(false)
+const showSettingsModal = ref(false)
 const isTogglingOpen = ref(false)
 
 async function toggleOpen() {
@@ -279,6 +291,11 @@ async function incrementOption(optionId: string) {
   }
 }
 
+function incrementAndFlash(optionId: string) {
+  void incrementOption(optionId)
+  flashOption(optionId)
+}
+
 async function decrementOption(optionId: string) {
   if (!props.vote.open) {
     return
@@ -302,6 +319,13 @@ async function decrementOption(optionId: string) {
     emit('refresh')
     toast.add({ title: t('common.error'), color: 'error' })
   }
+}
+
+function decrementAndFlash(optionId: string) {
+  const option = displayOptions.value.find((entry) => entry.id === optionId)
+  if (!option || option.count <= 0) return
+  void decrementOption(optionId)
+  flashOption(optionId)
 }
 
 function undoLastVote() {
@@ -685,59 +709,76 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
 
 <template>
   <div
+    :id="`admin-vote-card-${vote.id}`"
     class="border-default bg-default relative overflow-hidden rounded-xl border transition-[background-color,border-color,box-shadow,padding] duration-200 md:pb-0"
     :class="vote.open ? 'border-primary/20 shadow-sm' : 'shadow-sm'"
     :style="mobileBottomPadding ? { paddingBottom: mobileBottomPadding } : {}"
   >
     <!-- Header -->
     <div
-      class="border-default relative z-10 flex flex-col gap-2 border-b px-4 py-3 transition-colors duration-200 sm:px-6 sm:py-4"
+      class="border-default relative z-10 flex flex-col gap-3 border-b px-4 py-3 transition-colors duration-200 sm:px-5"
       :class="vote.open ? 'bg-muted/20' : 'bg-transparent'"
     >
-      <!-- Row 1: name + primary action buttons -->
-      <div class="flex min-w-0 items-center gap-2">
-        <h3 class="min-w-0 flex-1 truncate font-semibold">{{ vote.name }}</h3>
-        <div class="flex shrink-0 items-center gap-1">
-          <UButton
-            v-if="!vote.open"
-            icon="i-tabler-player-play"
-            variant="subtle"
-            color="success"
-            size="sm"
-            class="transition-transform duration-200 active:scale-95"
-            :loading="isTogglingOpen"
-            :aria-label="t('admin.openVote')"
-            @click="toggleOpen"
+      <!-- Row 1: name + primary action -->
+      <div class="flex min-w-0 items-start gap-3">
+        <button
+          type="button"
+          class="focus-visible:ring-primary/60 flex min-w-0 flex-1 items-start gap-2 rounded-sm pt-1 text-left focus-visible:ring-2 focus-visible:outline-none"
+          :aria-expanded="expanded"
+          :aria-controls="`admin-vote-panel-${vote.id}`"
+          @click="emit('toggle')"
+        >
+          <UIcon
+            name="i-tabler-chevron-right"
+            class="text-muted size-4 shrink-0 transition-transform duration-200"
+            :class="expanded ? 'rotate-90' : ''"
+            aria-hidden="true"
           />
-          <UButton
-            v-else
-            icon="i-tabler-player-stop"
-            variant="subtle"
-            color="error"
-            size="sm"
-            class="transition-transform duration-200 active:scale-95"
-            :loading="isTogglingOpen"
-            :aria-label="t('admin.closeVote')"
-            @click="toggleOpen"
-          />
-          <UButton
-            icon="i-tabler-trash"
-            variant="ghost"
-            color="error"
-            size="sm"
-            :aria-label="t('admin.deleteVote')"
-            @click="showDeleteVoteModal = true"
-          />
-        </div>
+          <span class="min-w-0 leading-snug font-semibold break-words">{{ vote.name }}</span>
+        </button>
+        <UButton
+          v-if="!vote.open"
+          icon="i-tabler-player-play"
+          variant="subtle"
+          color="success"
+          size="sm"
+          class="shrink-0 transition-transform duration-200 active:scale-95"
+          :loading="isTogglingOpen"
+          :aria-label="openActionLabel"
+          @click="toggleOpen"
+        >
+          {{ openActionLabel }}
+        </UButton>
+        <UButton
+          v-else
+          icon="i-tabler-player-stop"
+          variant="subtle"
+          color="error"
+          size="sm"
+          class="shrink-0 transition-transform duration-200 active:scale-95"
+          :loading="isTogglingOpen"
+          :aria-label="t('admin.closeVote')"
+          @click="toggleOpen"
+        >
+          {{ t('admin.closeVote') }}
+        </UButton>
       </div>
-      <!-- Row 2: status + total + secondary actions -->
-      <div class="flex flex-wrap items-center gap-2">
-        <VoteStatus :open="vote.open" :started-at="vote.startedAt" :ended-at="vote.endedAt" />
-        <span class="text-muted text-sm">
+      <!-- Row 2: status + secondary actions -->
+      <div class="flex flex-wrap items-center gap-2 pl-6">
+        <span v-if="votePhase !== 'setup'" class="text-muted text-sm">
           {{ t('admin.totalEmitted') }}:
           <span class="font-mono font-semibold">{{ totalVotes }}</span>
         </span>
-        <div class="ml-auto flex items-center gap-1">
+        <div class="ml-auto flex flex-wrap items-center justify-end gap-1">
+          <UButton
+            v-if="votePhase !== 'setup'"
+            icon="i-tabler-settings"
+            variant="ghost"
+            color="neutral"
+            size="sm"
+            :aria-label="t('admin.viewVoteSettings')"
+            @click="showSettingsModal = true"
+          />
           <Transition name="vote-controls">
             <div v-if="vote.open" class="hidden md:inline-flex">
               <UButton
@@ -773,7 +814,7 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
             variant="subtle"
             color="neutral"
             size="xs"
-            :disabled="displayOptions.length === 0"
+            :disabled="displayOptions.length === 0 || votePhase === 'setup'"
             @click="copyResults"
           >
             <span class="hidden sm:inline">{{ t('admin.copyResults') }}</span>
@@ -788,14 +829,22 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
           >
             {{ vote.visible ? t('admin.visible') : t('admin.hidden') }}
           </UButton>
+          <UButton
+            icon="i-tabler-trash"
+            variant="ghost"
+            color="error"
+            size="sm"
+            :aria-label="t('admin.deleteVote')"
+            @click="showDeleteVoteModal = true"
+          />
         </div>
       </div>
     </div>
 
     <!-- Options -->
-    <div class="relative z-10 space-y-4 p-6">
+    <div v-show="expanded" :id="`admin-vote-panel-${vote.id}`" class="relative z-10 space-y-4 p-6">
       <!-- Vote settings (accordion) -->
-      <div class="border-default rounded-lg border">
+      <div v-if="votePhase === 'setup'" class="border-default rounded-lg border">
         <button
           type="button"
           class="flex w-full items-center justify-between px-4 py-3 text-left"
@@ -874,7 +923,7 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
 
       <!-- Results with winners (post-close) -->
       <div
-        v-if="!vote.open && displayOptions.length > 0 && winnerIds.size > 0"
+        v-if="votePhase === 'results' && displayOptions.length > 0 && winnerIds.size > 0"
         class="border-default rounded-lg border p-4"
       >
         <p class="text-muted mb-2 text-xs font-semibold tracking-wide uppercase">
@@ -905,8 +954,8 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
           :locked="true"
           :active="vote.open"
           :threshold-reached="getThresholdReached(option)"
-          @increment="incrementOption(option.id)"
-          @decrement="decrementOption(option.id)"
+          @increment="incrementAndFlash(option.id)"
+          @decrement="decrementAndFlash(option.id)"
           @delete="pendingDeleteOptionId = option.id"
           @set-count="(count) => setOptionCount(option.id, count)"
           @update-color="(color) => updateOptionColor(option.id, color)"
@@ -914,13 +963,17 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
       </div>
 
       <div v-else ref="closedOptionsContainerRef" class="space-y-3">
+        <p v-if="votePhase === 'setup'" class="text-muted flex items-start gap-2 text-sm">
+          <UIcon name="i-tabler-toggle-right" class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <span>{{ t('admin.optionSwitchHelp') }}</span>
+        </p>
         <draggable
           :list="sortableOptions"
           item-key="id"
           tag="div"
           class="space-y-3"
           handle=".drag-handle"
-          :disabled="isReorderingOptions"
+          :disabled="isReorderingOptions || votePhase === 'results'"
           drag-class="vote-dragging"
           ghost-class="vote-drag-ghost"
           animation="180"
@@ -938,6 +991,10 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
               :locked="isReorderingOptions"
               :active="vote.open"
               :is-winner="winnerIds.has(option.id)"
+              :results-mode="votePhase === 'results'"
+              :hide-count="votePhase === 'setup'"
+              :hide-progress="votePhase === 'setup'"
+              hide-can-win-label
               @delete="pendingDeleteOptionId = option.id"
               @update-color="(color) => updateOptionColor(option.id, color)"
               @update-can-win="(canWin) => updateOptionCanWin(option.id, canWin)"
@@ -987,7 +1044,7 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
                   :aria-label="t('admin.incrementOption', { option: option.label })"
                   :aria-keyshortcuts="option.shortcut ?? undefined"
                   :title="option.label"
-                  @click="incrementOption(option.id)"
+                  @click="incrementAndFlash(option.id)"
                 >
                   <span aria-hidden="true">{{ option.shortcut ?? '?' }}</span>
                 </button>
@@ -1022,7 +1079,7 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
       </Teleport>
 
       <!-- Add option -->
-      <div v-if="!vote.open" class="pt-2">
+      <div v-if="votePhase === 'setup'" class="pt-2">
         <div class="flex items-center gap-2">
           <UInput
             v-model="newOptionLabel"
@@ -1103,6 +1160,41 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
             {{ t('admin.cancel') }}
           </UButton>
           <UButton color="error" @click="executeDeleteOption">{{ t('admin.delete') }}</UButton>
+        </div>
+      </div>
+    </template>
+  </UModal>
+
+  <!-- Settings summary -->
+  <UModal v-model:open="showSettingsModal">
+    <template #content>
+      <div class="p-6">
+        <h3 class="text-lg font-semibold">{{ t('admin.voteSettings') }}</h3>
+        <dl class="mt-4 space-y-3">
+          <div class="flex justify-between gap-4">
+            <dt class="text-muted">{{ t('admin.minimumVotes') }}</dt>
+            <dd class="font-medium">
+              {{ vote.minimumVotes ?? t('admin.minimumVotesPlaceholder') }}
+            </dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-muted">{{ t('admin.maxWinners') }}</dt>
+            <dd class="font-medium">
+              {{ vote.maxWinners ?? t('admin.maxWinnersPlaceholder') }}
+            </dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-muted">{{ t('admin.confettiEnabled') }}</dt>
+            <dd class="font-medium">
+              {{ vote.confettiEnabled ? t('common.yes') : t('common.no') }}
+            </dd>
+          </div>
+        </dl>
+        <p class="text-muted mt-4 text-sm">{{ t('admin.optionSwitchHelp') }}</p>
+        <div class="mt-6 flex justify-end">
+          <UButton color="neutral" variant="subtle" @click="showSettingsModal = false">
+            {{ t('admin.close') }}
+          </UButton>
         </div>
       </div>
     </template>

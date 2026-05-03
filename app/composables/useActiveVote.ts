@@ -77,6 +77,8 @@ export function useActiveVote() {
           } else if (type === 'vote-status-change') {
             if ((d.open as boolean) === true) winnerIds.value = []
             refresh()
+          } else if (type === 'content-changed') {
+            refresh()
           } else if (type === 'vote-closed') {
             if (!activeVote.value || d.voteId !== activeVote.value.id) return
             winnerIds.value = Array.isArray(d.winnerIds) ? (d.winnerIds as string[]) : []

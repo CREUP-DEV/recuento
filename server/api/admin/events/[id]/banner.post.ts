@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '#db'
 import { events } from '#db/schema'
 import { saveBannerImage } from '#server-utils/adminImageUpload'
+import { emitContentChanged } from '#server-utils/sseManager'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -27,6 +28,8 @@ export default defineEventHandler(async (event) => {
   })
 
   await db.update(events).set({ banner: storagePath }).where(eq(events.id, id))
+
+  emitContentChanged({ type: 'content-changed', scope: 'event', eventId: id })
 
   return { data: { storagePath } }
 })

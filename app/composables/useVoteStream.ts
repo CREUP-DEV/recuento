@@ -68,6 +68,9 @@ export function useVoteStream(voteId?: MaybeRef<string | null>) {
         const d = data as SSEEvent & { winnerIds?: unknown }
         lastEvent.value = data as SSEEvent
         winnerIds.value = Array.isArray(d.winnerIds) ? (d.winnerIds as string[]) : []
+      } else if (type === 'content-changed') {
+        lastEvent.value = data as SSEEvent
+        refetchVoteData()
       }
     },
   })

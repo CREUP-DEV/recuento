@@ -1,4 +1,8 @@
-export type SSENamedEvent = 'vote-count-update' | 'vote-status-change' | 'vote-closed'
+export type SSENamedEvent =
+  | 'vote-count-update'
+  | 'vote-status-change'
+  | 'vote-closed'
+  | 'content-changed'
 
 export type SSEEventHandler = (type: SSENamedEvent | 'connected', data: unknown) => void
 
@@ -8,7 +12,12 @@ export interface UseSSEConnectionOptions {
   onConnectionStateChange?: (connected: boolean) => void
 }
 
-const NAMED_EVENTS: SSENamedEvent[] = ['vote-count-update', 'vote-status-change', 'vote-closed']
+const NAMED_EVENTS: SSENamedEvent[] = [
+  'vote-count-update',
+  'vote-status-change',
+  'vote-closed',
+  'content-changed',
+]
 
 export function makeSSEClient(opts: UseSSEConnectionOptions) {
   let eventSource: EventSource | null = null

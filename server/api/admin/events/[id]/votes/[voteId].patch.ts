@@ -4,7 +4,7 @@ import { db } from '#db'
 import { votes } from '#db/schema'
 import { pickDefined } from '#server-utils/pickDefined'
 import { requireVoteInAdminScope } from '#server-utils/adminVoteScope'
-import { emitVoteStatusChange } from '#server-utils/sseManager'
+import { emitContentChanged, emitVoteStatusChange } from '#server-utils/sseManager'
 import { emitVoteCountUpdate } from '#server-utils/voteCountEmitter'
 import { updateVoteSchema } from '#validation/votes'
 
@@ -75,6 +75,8 @@ export default defineEventHandler(async (event) => {
   ) {
     emitVoteCountUpdate(voteId)
   }
+
+  emitContentChanged({ type: 'content-changed', scope: 'vote', eventId, voteId })
 
   return { data: updated }
 })

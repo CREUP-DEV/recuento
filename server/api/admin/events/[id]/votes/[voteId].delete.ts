@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db } from '#db'
 import { votes } from '#db/schema'
-import { emitVoteStatusChange } from '#server-utils/sseManager'
+import { emitContentChanged, emitVoteStatusChange } from '#server-utils/sseManager'
 import { requireVoteInAdminScope } from '#server-utils/adminVoteScope'
 
 export default defineEventHandler(async (event) => {
@@ -31,6 +31,8 @@ export default defineEventHandler(async (event) => {
       endedAt: new Date().toISOString(),
     })
   }
+
+  emitContentChanged({ type: 'content-changed', scope: 'vote', eventId: deleted.eventId, voteId })
 
   return { success: true }
 })

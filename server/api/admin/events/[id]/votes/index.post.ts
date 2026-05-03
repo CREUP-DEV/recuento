@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm'
 import { db } from '#db'
 import { events, votes } from '#db/schema'
+import { emitContentChanged } from '#server-utils/sseManager'
 import { createVoteSchema } from '#validation/votes'
 
 export default defineEventHandler(async (event) => {
@@ -36,6 +37,10 @@ export default defineEventHandler(async (event) => {
       maxWinners: data.maxWinners ?? null,
     })
     .returning()
+
+  if (!created) throw createError({ statusCode: 500, message: 'Error al crear la votación' })
+
+  emitContentChanged({ type: 'content-changed', scope: 'vote', eventId, voteId: created.id })
 
   return { data: created }
 })

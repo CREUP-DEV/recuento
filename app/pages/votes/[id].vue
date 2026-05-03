@@ -66,6 +66,9 @@ watch(lastEvent, (event) => {
   if (event?.type === 'vote-status-change' && event.voteId === voteId) {
     isOpen.value = event.open
   }
+  if (event?.type === 'content-changed' && (!event.voteId || event.voteId === voteId)) {
+    refreshVote()
+  }
   if (
     event?.type === 'vote-closed' &&
     event.voteId === voteId &&

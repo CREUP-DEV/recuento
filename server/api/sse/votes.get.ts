@@ -43,7 +43,7 @@ export default defineEventHandler(async (event) => {
   }, 30_000)
 
   const handler = (data: SerializedSSEEvent) => {
-    if (filterVoteId && data.voteId !== filterVoteId) return
+    if (filterVoteId && data.voteId && data.voteId !== filterVoteId) return
     try {
       writer.write(`event: ${data.type}\ndata: ${data.json}\n\n`)
     } catch {

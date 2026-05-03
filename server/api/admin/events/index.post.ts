@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { db } from '#db'
 import { events } from '#db/schema'
+import { emitContentChanged } from '#server-utils/sseManager'
 import { createEventSchema } from '#validation/events'
 
 export default defineEventHandler(async (event) => {
@@ -21,6 +22,10 @@ export default defineEventHandler(async (event) => {
       order: orderRow?.nextOrder ?? 0,
     })
     .returning()
+
+  if (!created) throw createError({ statusCode: 500, message: 'Error al crear el evento' })
+
+  emitContentChanged({ type: 'content-changed', scope: 'events', eventId: created.id })
 
   return { data: created }
 })

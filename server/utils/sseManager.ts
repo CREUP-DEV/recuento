@@ -3,11 +3,12 @@ import type {
   VoteCountUpdateEvent,
   VoteStatusChangeEvent,
   VoteClosedEvent,
+  ContentChangedEvent,
 } from '~~/shared/types/sseEvents'
 
 export interface SerializedSSEEvent {
   type: string
-  voteId: string
+  voteId?: string
   json: string
 }
 
@@ -41,6 +42,10 @@ export function emitVoteStatusChange(data: VoteStatusChangeEvent) {
 }
 
 export function emitVoteClosed(data: VoteClosedEvent) {
+  emitter.emit('sse', { type: data.type, voteId: data.voteId, json: JSON.stringify(data) })
+}
+
+export function emitContentChanged(data: ContentChangedEvent) {
   emitter.emit('sse', { type: data.type, voteId: data.voteId, json: JSON.stringify(data) })
 }
 
