@@ -74,8 +74,8 @@ export const votes = pgTable(
     index('idx_votes_event_id').on(table.eventId),
     index('idx_votes_open').on(table.open),
     index('idx_votes_visible_order').on(table.visible, table.order),
-    uniqueIndex('idx_votes_slug_unique_active')
-      .on(table.slug)
+    uniqueIndex('idx_votes_event_slug_unique_active')
+      .on(table.eventId, table.slug)
       .where(sql`${table.deletedAt} IS NULL`),
     uniqueIndex('idx_votes_single_open_global')
       .on(table.open)

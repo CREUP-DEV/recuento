@@ -3,10 +3,22 @@ const { t } = useI18n()
 const localePath = useLocalePath()
 const { activeVote } = useActiveVote()
 const route = useRoute()
+const activeVotePath = computed(() => {
+  if (!activeVote.value?.event) return '/'
+  return `/${activeVote.value.event.slug || activeVote.value.event.id}/${activeVote.value.slug || activeVote.value.id}`
+})
 
 const isOnLivePage = computed(() => {
   if (!activeVote.value) return true
-  return route.path.includes(`/votes/${activeVote.value.id}`)
+  const routeEventId = route.params.eventId
+  const routeVoteId = route.params.voteId
+  const eventParam = Array.isArray(routeEventId) ? routeEventId[0] : routeEventId
+  const voteParam = Array.isArray(routeVoteId) ? routeVoteId[0] : routeVoteId
+
+  return (
+    (eventParam === activeVote.value.event?.id || eventParam === activeVote.value.event?.slug) &&
+    (voteParam === activeVote.value.id || voteParam === activeVote.value.slug)
+  )
 })
 </script>
 
@@ -21,7 +33,7 @@ const isOnLivePage = computed(() => {
   >
     <NuxtLink
       v-if="activeVote && !isOnLivePage"
-      :to="localePath(`/votes/${activeVote.id}`)"
+      :to="localePath(activeVotePath)"
       class="fixed right-6 bottom-6 z-50 flex items-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-red-500/30 transition-all hover:bg-red-700 hover:shadow-xl hover:shadow-red-500/40 active:scale-95"
       :aria-label="t('votes.backToLive')"
     >

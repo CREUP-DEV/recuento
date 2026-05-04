@@ -4,6 +4,21 @@ import { events, votes } from '../db/schema'
 
 type SlugExecutor = Pick<typeof db, 'execute' | 'query'>
 
+const RESERVED_EVENT_SLUGS = new Set([
+  'admin',
+  'api',
+  'banners',
+  'en',
+  'es',
+  'events',
+  'health',
+  'local',
+])
+
+export function isReservedEventSlug(slug: string): boolean {
+  return RESERVED_EVENT_SLUGS.has(slug)
+}
+
 export function slugify(value: string): string {
   return value
     .normalize('NFD')
@@ -34,7 +49,7 @@ export async function generateEventSlug(name: string, executor: SlugExecutor, ex
         : and(eq(events.slug, candidate), sql`${events.deletedAt} IS NULL`),
     })
 
-    if (!existing) return candidate
+    if (!existing && !isReservedEventSlug(candidate)) return candidate
 
     candidate = `${baseSlug}-${suffix}`
     suffix++
@@ -43,9 +58,16 @@ export async function generateEventSlug(name: string, executor: SlugExecutor, ex
   throw new Error('Could not generate a unique event slug')
 }
 
-export async function generateVoteSlug(name: string, executor: SlugExecutor, excludeId?: string) {
+export async function generateVoteSlug(
+  name: string,
+  eventId: string,
+  executor: SlugExecutor,
+  excludeId?: string
+) {
   const baseSlug = slugify(name) || 'vote'
-  await executor.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`vote:${baseSlug}`}))`)
+  await executor.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtext(${`vote:${eventId}:${baseSlug}`}))`
+  )
 
   let candidate = baseSlug
   let suffix = 2
@@ -53,8 +75,17 @@ export async function generateVoteSlug(name: string, executor: SlugExecutor, exc
   while (suffix < 100) {
     const existing = await executor.query.votes.findFirst({
       where: excludeId
-        ? and(eq(votes.slug, candidate), ne(votes.id, excludeId), sql`${votes.deletedAt} IS NULL`)
-        : and(eq(votes.slug, candidate), sql`${votes.deletedAt} IS NULL`),
+        ? and(
+            eq(votes.eventId, eventId),
+            eq(votes.slug, candidate),
+            ne(votes.id, excludeId),
+            sql`${votes.deletedAt} IS NULL`
+          )
+        : and(
+            eq(votes.eventId, eventId),
+            eq(votes.slug, candidate),
+            sql`${votes.deletedAt} IS NULL`
+          ),
     })
 
     if (!existing) return candidate

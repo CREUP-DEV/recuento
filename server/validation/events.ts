@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { getDefaultApiErrorMessage } from '#server-utils/apiErrorMessages'
+import { isReservedEventSlug } from '#server-utils/slug'
 
 function parseDateValue(value: string) {
   return new Date(value).getTime()
@@ -29,6 +30,7 @@ const slugField = z
   .min(1)
   .max(100)
   .regex(/^[a-z0-9-]+$/, getDefaultApiErrorMessage('invalidSlug'))
+  .refine((slug) => !isReservedEventSlug(slug), getDefaultApiErrorMessage('invalidSlug'))
 
 export const createEventSchema = z
   .object({

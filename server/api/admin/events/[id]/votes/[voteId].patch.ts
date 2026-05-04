@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
     'confettiEnabled',
   ])
   if (data.name && data.slug === undefined && data.name !== currentVote.name) {
-    updateData.slug = await generateVoteSlug(data.name, db, voteId)
+    updateData.slug = await generateVoteSlug(data.name, eventId, db, voteId)
   }
 
   if (Object.keys(updateData).length === 0) {

@@ -7,6 +7,7 @@ const localePath = useLocalePath()
 interface PublicEventListResponse {
   data: Array<{
     id: string
+    slug: string
     name: string
     banner: string | null
     startDate: string
@@ -18,6 +19,10 @@ const { data: activeData, refresh: refreshActiveVote } = await useFetch<{
   data: ActiveVoteData | null
 }>('/api/votes/active')
 const activeVote = computed(() => activeData.value?.data ?? null)
+const activeVotePath = computed(() => {
+  if (!activeVote.value?.event) return '/'
+  return `/${activeVote.value.event.slug || activeVote.value.event.id}/${activeVote.value.slug || activeVote.value.id}`
+})
 
 const { data: eventsData, refresh: refreshEvents } =
   await useFetch<PublicEventListResponse>('/api/events')
@@ -44,7 +49,7 @@ useSeoMeta({
     <!-- Live vote banner -->
     <NuxtLink
       v-if="activeVote"
-      :to="localePath(`/votes/${activeVote.id}`)"
+      :to="localePath(activeVotePath)"
       class="mb-8 flex items-center gap-3 rounded-xl bg-linear-to-r from-red-600 to-red-700 px-5 py-4 text-white transition hover:opacity-90 dark:from-red-800 dark:to-red-900"
     >
       <span class="relative flex size-3">
@@ -91,6 +96,7 @@ useSeoMeta({
         v-for="ev in events"
         :id="ev.id"
         :key="ev.id"
+        :slug="ev.slug"
         :name="ev.name"
         :banner="ev.banner"
         :start-date="ev.startDate"

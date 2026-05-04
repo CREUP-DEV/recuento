@@ -26,13 +26,14 @@ interface VotePageData {
 const { t } = useI18n()
 const localePath = useLocalePath()
 const route = useRoute()
-const voteParam = route.params.id as string
+const eventParam = route.params.eventId as string
+const voteParam = route.params.voteId as string
 
 const {
   data,
   error,
   refresh: refreshVote,
-} = await useFetch<{ data: VotePageData }>(`/api/votes/${voteParam}`)
+} = await useFetch<{ data: VotePageData }>(`/api/events/${eventParam}/votes/${voteParam}`)
 const vote = computed(() => data.value?.data)
 const voteId = computed(() => vote.value?.id ?? voteParam)
 
@@ -47,11 +48,10 @@ const {
   isConnected,
   isHidden,
   lastEvent,
-} = useVoteStream(voteId)
+} = useVoteStream(voteId, eventParam)
 
 const { launchConfetti } = useConfetti()
 
-// isOpen starts from fetch, updates reactively via SSE status-change events
 const isOpen = ref(vote.value?.open ?? false)
 
 watch(isConnected, async (connected, wasConnected) => {
@@ -86,8 +86,6 @@ const displayOptions = computed(() =>
   streamOptions.value.length > 0 ? streamOptions.value : (vote.value?.options ?? [])
 )
 
-// Calculate winners from initial fetch data (for closed votes on page load).
-// Uses isOpen (reactive) so winners clear when vote is reopened via SSE.
 const displayMinimumVotes = computed(
   () => streamMinimumVotes.value ?? vote.value?.minimumVotes ?? null
 )
@@ -106,7 +104,6 @@ const displayWinnerIds = computed(() => {
   ]
 })
 
-// Labels for winner options (for the list display)
 const winnerOptions = computed(() =>
   displayOptions.value.filter((o) => displayWinnerIds.value.includes(o.id))
 )
@@ -128,10 +125,9 @@ useSeoMeta({
 
 <template>
   <div class="animate-fade-slide-up mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
-    <!-- Breadcrumb -->
     <div v-if="eventName && eventId" class="mb-4">
       <NuxtLink
-        :to="localePath(`/events/${eventSlug || eventId}`)"
+        :to="localePath(`/${eventSlug || eventId}`)"
         class="text-muted hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors"
       >
         <UIcon name="i-tabler-arrow-left" class="size-4" />
@@ -139,7 +135,6 @@ useSeoMeta({
       </NuxtLink>
     </div>
 
-    <!-- Vote header -->
     <div class="mb-8 flex items-start justify-between gap-4">
       <div>
         <h1 class="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
@@ -168,7 +163,6 @@ useSeoMeta({
       </div>
     </div>
 
-    <!-- Winners list (post-close) -->
     <div
       v-if="!isOpen && winnerOptions.length > 0"
       class="border-default bg-default mb-6 overflow-hidden rounded-2xl border p-6 shadow-sm"
@@ -188,7 +182,6 @@ useSeoMeta({
       </div>
     </div>
 
-    <!-- Vote chart -->
     <div class="border-default bg-default overflow-hidden rounded-2xl border p-6 shadow-sm sm:p-8">
       <VoteChart
         v-if="displayOptions.length > 0"

@@ -5,12 +5,17 @@ const { t } = useI18n()
 const localePath = useLocalePath()
 const { formatDate } = useLocaleFormatting()
 const route = useRoute()
-const eventParam = route.params.id as string
+const eventParam = route.params.eventId as string
 
 const { data, error, status, refresh } = await useFetch(`/api/events/${eventParam}`)
 const ev = computed(() => data.value?.data)
 const eventId = computed(() => ev.value?.id ?? eventParam)
+const eventSlug = computed(() => ev.value?.slug ?? eventParam)
 const eventVotes = computed(() => ev.value?.votes ?? [])
+
+function getVotePath(vote: { id: string; slug?: string | null }) {
+  return `/${eventSlug.value || eventId.value}/${vote.slug || vote.id}`
+}
 
 function getVoteWinnerIds(vote: {
   open: boolean
@@ -121,7 +126,7 @@ useSSEConnection({
           <div class="border-default flex items-center justify-between gap-4 border-b px-6 py-4">
             <div class="flex items-center gap-3">
               <NuxtLink
-                :to="localePath(`/votes/${vote.slug || vote.id}`)"
+                :to="localePath(getVotePath(vote))"
                 class="font-heading hover:text-creup-red-600 dark:hover:text-creup-red-400 text-lg font-semibold transition-colors"
               >
                 {{ vote.name }}
@@ -133,7 +138,7 @@ useSSEConnection({
           <div class="p-6">
             <template v-if="vote.open">
               <NuxtLink
-                :to="localePath(`/votes/${vote.slug || vote.id}`)"
+                :to="localePath(getVotePath(vote))"
                 class="flex items-center justify-center gap-3 rounded-xl bg-linear-to-r from-red-600 to-red-700 px-6 py-5 text-white transition hover:opacity-90 dark:from-red-800 dark:to-red-900"
               >
                 <span class="relative flex size-3">

@@ -4,6 +4,10 @@ const { setLocale } = useI18n()
 const localePath = useLocalePath()
 const { activeVote } = useActiveVote()
 const { session } = useAuth()
+const activeVotePath = computed(() => {
+  if (!activeVote.value?.event) return '/'
+  return `/${activeVote.value.event.slug || activeVote.value.event.id}/${activeVote.value.slug || activeVote.value.id}`
+})
 
 const defaultLocaleItem = computed(
   () => ({ code: 'es', flag: 'i-circle-flags-es', name: t('locales.es') }) as const
@@ -42,7 +46,7 @@ async function switchLocale(code: 'es' | 'en') {
 
       <NuxtLink
         v-if="activeVote"
-        :to="localePath(`/votes/${activeVote.id}`)"
+        :to="localePath(activeVotePath)"
         class="border-default/80 ml-1 flex items-center gap-2 rounded-full border bg-white/80 px-2 py-1.5 text-xs font-semibold text-[color:var(--ui-primary)] shadow-sm transition hover:bg-white sm:px-3 dark:bg-black/20 dark:hover:bg-black/30"
         :aria-label="t('accessibility.liveVoteIndicator')"
       >

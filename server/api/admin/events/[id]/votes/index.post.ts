@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
       .from(votes)
       .where(and(eq(votes.eventId, eventId), sql`${votes.deletedAt} IS NULL`))
 
-    const slug = data.slug ?? (await generateVoteSlug(data.name, tx))
+    const slug = data.slug ?? (await generateVoteSlug(data.name, eventId, tx))
 
     const [inserted] = await tx
       .insert(votes)

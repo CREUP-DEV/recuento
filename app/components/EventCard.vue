@@ -14,7 +14,7 @@ const props = defineProps<{
 
 <template>
   <NuxtLink
-    :to="localePath(`/events/${props.slug || props.id}`)"
+    :to="localePath(`/${props.slug || props.id}`)"
     class="motion-card group border-default bg-default block overflow-hidden rounded-xl border shadow-sm"
   >
     <div class="bg-muted relative aspect-7/2 w-full overflow-hidden">

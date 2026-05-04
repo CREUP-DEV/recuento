@@ -2,6 +2,7 @@ import type { SSEEvent } from '~~/shared/types/sseEvents'
 
 export interface ActiveVoteData {
   id: string
+  slug: string
   name: string
   eventId: string
   minimumVotes: number | null
@@ -9,6 +10,7 @@ export interface ActiveVoteData {
   confettiEnabled: boolean
   event?: {
     id: string
+    slug: string
     name: string
   }
   options: Array<{

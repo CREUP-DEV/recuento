@@ -1,0 +1,2 @@
+DROP INDEX "idx_votes_slug_unique_active";--> statement-breakpoint
+CREATE UNIQUE INDEX "idx_votes_event_slug_unique_active" ON "votes" USING btree ("event_id","slug") WHERE "votes"."deleted_at" IS NULL;

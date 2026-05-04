@@ -12,7 +12,7 @@ export interface VoteStreamVoteResponse {
 
 export type VoteStreamOption = VoteCountUpdateEvent['options'][number]
 
-export function useVoteStream(voteId?: MaybeRef<string | null>) {
+export function useVoteStream(voteId?: MaybeRef<string | null>, eventId?: MaybeRef<string | null>) {
   const options = ref<VoteStreamOption[]>([])
   const minimumVotes = ref<number | null>(null)
   const maxWinners = ref<number | null>(null)
@@ -23,9 +23,12 @@ export function useVoteStream(voteId?: MaybeRef<string | null>) {
 
   async function refetchVoteData() {
     const voteIdValue = unref(voteId)
-    if (!voteIdValue) return
+    const eventIdValue = unref(eventId)
+    if (!voteIdValue || !eventIdValue) return
     try {
-      const res = await $fetch<VoteStreamVoteResponse>(`/api/votes/${voteIdValue}`)
+      const res = await $fetch<VoteStreamVoteResponse>(
+        `/api/events/${eventIdValue}/votes/${voteIdValue}`
+      )
       options.value = res.data.options
       minimumVotes.value = res.data.minimumVotes ?? null
       maxWinners.value = res.data.maxWinners ?? null
