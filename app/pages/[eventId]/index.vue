@@ -12,9 +12,14 @@ const ev = computed(() => data.value?.data)
 const eventId = computed(() => ev.value?.id ?? eventParam)
 const eventSlug = computed(() => ev.value?.slug ?? eventParam)
 const eventVotes = computed(() => ev.value?.votes ?? [])
+const openVoteId = computed(() => eventVotes.value.find((vote) => vote.open)?.id ?? null)
 
 function getVotePath(vote: { id: string; slug?: string | null }) {
   return `/${eventSlug.value || eventId.value}/${vote.slug || vote.id}`
+}
+
+function scrollToVote(voteId: string) {
+  document.getElementById(`vote-${voteId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 function getVoteWinnerIds(vote: {
@@ -45,7 +50,13 @@ useSSEConnection({
   url: '/api/sse/votes',
   onEvent(type, payload) {
     if (type === 'vote-status-change') {
-      refresh()
+      const data = payload as { eventId?: string; open?: boolean; voteId?: string }
+      if (data.eventId && data.eventId !== eventId.value) return
+      void refresh().then(() => {
+        if (data.open && data.voteId) {
+          setTimeout(() => scrollToVote(data.voteId as string), 50)
+        }
+      })
       return
     }
 
@@ -54,6 +65,11 @@ useSSEConnection({
       if (!data.eventId || data.eventId === eventId.value) refresh()
     }
   },
+})
+
+onMounted(async () => {
+  await nextTick()
+  if (openVoteId.value) setTimeout(() => scrollToVote(openVoteId.value as string), 50)
 })
 </script>
 

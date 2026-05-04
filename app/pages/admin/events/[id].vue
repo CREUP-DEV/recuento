@@ -51,9 +51,30 @@ const allVotesExpanded = computed(() => {
   return votes.length > 0 && votes.every((vote) => expandedVoteIds.value.has(vote.id))
 })
 
+function scrollToAdminVote(voteId: string) {
+  document
+    .getElementById(`admin-vote-card-${voteId}`)
+    ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+async function expandAndScrollToVote(voteId: string) {
+  expandedVoteIds.value = new Set([...expandedVoteIds.value, voteId])
+  await nextTick()
+  setTimeout(() => scrollToAdminVote(voteId), 50)
+}
+
+async function expandAndScrollToOpenVote() {
+  const openVote = ev.value?.votes.find((vote) => vote.open)
+  if (openVote) await expandAndScrollToVote(openVote.id)
+}
+
 if (!ev.value) {
   throw createError({ statusCode: 404, statusMessage: t('errors.eventNotFound') })
 }
+
+onMounted(() => {
+  void expandAndScrollToOpenVote()
+})
 
 function toDateInput(ts: string | null | undefined): string {
   return ts ? new Date(ts).toISOString().slice(0, 10) : ''
@@ -200,11 +221,7 @@ async function addVote() {
     expandedVoteIds.value = new Set([data.id])
     await refresh()
     await nextTick()
-    setTimeout(() => {
-      document
-        .getElementById(`admin-vote-card-${data.id}`)
-        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 50)
+    setTimeout(() => scrollToAdminVote(data.id), 50)
   } catch {
     toast.add({ title: t('admin.toasts.voteCreateError'), color: 'error' })
   } finally {
@@ -273,17 +290,26 @@ function toggleAllVotePanels() {
 
 const { isConnected: adminRealtimeConnected } = useSSEConnection({
   url: '/api/sse/votes',
-  onEvent(type, data) {
-    if (type === 'vote-status-change' || type === 'content-changed') {
+  onEvent(type, payload) {
+    if (type === 'vote-status-change') {
+      const data = payload as { eventId?: string; open?: boolean; voteId?: string }
+      void refresh().then(() => {
+        if ((!data.eventId || data.eventId === eventId.value) && data.open && data.voteId) {
+          void expandAndScrollToVote(data.voteId)
+        }
+      })
+      return
+    }
+    if (type === 'content-changed') {
       void refresh()
       return
     }
     if (type === 'vote-count-update') {
-      const payload = data as { voteId?: string; options?: AdminEventVoteOption[] }
-      if (!payload.voteId || !Array.isArray(payload.options) || !eventData.value?.data) return
-      const vote = eventData.value.data.votes.find((entry) => entry.id === payload.voteId)
+      const data = payload as { voteId?: string; options?: AdminEventVoteOption[] }
+      if (!data.voteId || !Array.isArray(data.options) || !eventData.value?.data) return
+      const vote = eventData.value.data.votes.find((entry) => entry.id === data.voteId)
       if (!vote) return
-      vote.options = payload.options.map((option) => ({ ...option, shortcut: null }))
+      vote.options = data.options.map((option) => ({ ...option, shortcut: null }))
     }
   },
 })
@@ -461,7 +487,12 @@ const adminRealtimeStatus = computed(() =>
         :event-id="eventId"
         :expanded="expandedVoteIds.has(vote.id)"
         @toggle="toggleVotePanel(vote.id)"
-        @refresh="refresh"
+        @refresh="
+          async (focusVoteId) => {
+            await refresh()
+            if (focusVoteId) await expandAndScrollToVote(focusVoteId)
+          }
+        "
         @update-vote="(fields) => patchVote(vote.id, fields)"
         @update-option="(optionId, fields) => patchOption(vote.id, optionId, fields)"
       />

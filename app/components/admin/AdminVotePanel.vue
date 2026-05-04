@@ -43,7 +43,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  refresh: []
+  refresh: [focusVoteId?: string]
   toggle: []
   'update-vote': [fields: Partial<Vote>]
   'update-option': [optionId: string, fields: Partial<VoteOption>]
@@ -194,7 +194,7 @@ async function toggleOpen() {
     localCounts.value = {}
     voteHistory.value = []
     redoHistory.value = []
-    emit('refresh')
+    emit('refresh', action === 'open' ? props.vote.id : undefined)
   } catch (err: unknown) {
     const apiErr = err as {
       data?: { openVoteId?: string; openEventId?: string; openVoteName?: string }
