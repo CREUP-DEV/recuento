@@ -41,7 +41,8 @@ WORKDIR /app/.output
 ENV NODE_ENV=production \
   NITRO_PORT=3000 \
   PORT=3000 \
-  HOST=0.0.0.0
+  HOST=0.0.0.0 \
+  PATH="/nodejs/bin:${PATH}"
 
 USER 1000:1000
 
@@ -52,5 +53,5 @@ COPY --from=builder --chown=1000:1000 /app/ops/start.mjs /app/ops/start.mjs
 COPY --from=builder --chown=1000:1000 /app/drizzle /app/drizzle
 
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD ["/nodejs/bin/node", "-e", "const port=process.env.NITRO_PORT||process.env.PORT||'3000';fetch('http://127.0.0.1:'+port+'/health').then((response)=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD ["node", "-e", "const port=process.env.NITRO_PORT||process.env.PORT||'3000';fetch('http://127.0.0.1:'+port+'/health').then((response)=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))"]
 CMD ["/app/ops/start.mjs"]

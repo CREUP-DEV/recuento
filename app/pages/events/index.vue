@@ -4,6 +4,7 @@ const { t } = useI18n()
 interface EventListResponse {
   data: Array<{
     id: string
+    slug: string
     name: string
     banner: string | null
     startDate: string
@@ -28,6 +29,7 @@ useSeoMeta({ title: () => t('events.title') })
         v-for="ev in eventList"
         :id="ev.id"
         :key="ev.id"
+        :slug="ev.slug"
         :name="ev.name"
         :banner="ev.banner"
         :start-date="ev.startDate"

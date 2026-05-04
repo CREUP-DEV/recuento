@@ -4,9 +4,9 @@ import { ADMIN_ROUTES } from '~~/shared/constants/adminRoutes'
 
 definePageMeta({
   layout: false,
-  title: 'Acceso',
 })
 
+const { t } = useI18n()
 const { signInWithGoogle, signOut, session } = useAuth()
 const route = useRoute()
 const isLoading = ref(false)
@@ -25,7 +25,7 @@ const verifyAdminAccess = async () => {
     await $fetch('/api/admin/session')
     await navigateTo(ADMIN_ROUTES.dashboard)
   } catch {
-    error.value = 'No tienes permiso para acceder a esta página'
+    error.value = t('auth.accessDenied')
   } finally {
     isCheckingAccess.value = false
   }
@@ -35,7 +35,7 @@ watch(
   () => route.query.error,
   (queryError) => {
     if (typeof queryError === 'string' && queryError.length > 0) {
-      error.value = 'No se pudo completar el inicio de sesión con la cuenta seleccionada'
+      error.value = t('auth.signInProviderError')
     }
   },
   { immediate: true }
@@ -57,11 +57,15 @@ const handleLogin = async () => {
     error.value = null
     await signInWithGoogle()
   } catch {
-    error.value = 'No se ha podido iniciar sesión en este momento'
+    error.value = t('auth.signInError')
   } finally {
     isLoading.value = false
   }
 }
+
+useHead({
+  title: () => t('auth.accessTitle'),
+})
 </script>
 
 <template>

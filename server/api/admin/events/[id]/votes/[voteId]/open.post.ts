@@ -1,4 +1,4 @@
-import { and, asc, eq, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm'
 import { db } from '#db'
 import { votes, voteOptions } from '#db/schema'
 import { requireEventInAdminScope, requireVoteInAdminScope } from '#server-utils/adminVoteScope'
@@ -8,44 +8,44 @@ export default defineEventHandler(async (event) => {
   const eventId = getRouterParam(event, 'id')
   const voteId = getRouterParam(event, 'voteId')
   if (!eventId || !voteId) {
-    throw createError({ statusCode: 400, message: 'IDs requeridos' })
+    throw createError({ statusCode: 400, message: getApiErrorMessage(event, 'requiredIds') })
   }
 
   const parentEvent = await requireEventInAdminScope(eventId)
   const vote = await requireVoteInAdminScope(eventId, voteId)
 
   if (vote.open) {
-    throw createError({ statusCode: 400, message: 'La votación ya está abierta' })
+    throw createError({ statusCode: 400, message: getApiErrorMessage(event, 'voteAlreadyOpen') })
   }
   if (!parentEvent.visible) {
     throw createError({
       statusCode: 409,
-      message: 'No se puede abrir una votación de un evento oculto.',
+      message: getApiErrorMessage(event, 'voteOpenBlockedByHiddenEvent'),
     })
   }
   if (!vote.visible) {
     throw createError({
       statusCode: 409,
-      message: 'No se puede abrir una votación oculta.',
+      message: getApiErrorMessage(event, 'voteOpenBlockedByHiddenVote'),
     })
   }
 
   const optionRows = await db
     .select({ canWin: voteOptions.canWin })
     .from(voteOptions)
-    .where(eq(voteOptions.voteId, voteId))
+    .where(and(eq(voteOptions.voteId, voteId), isNull(voteOptions.deletedAt)))
 
   if (optionRows.length === 0) {
     throw createError({
       statusCode: 409,
-      message: 'La votación debe tener al menos una opción para abrirse.',
+      message: getApiErrorMessage(event, 'voteMissingOptions'),
     })
   }
 
   if (!optionRows.some((o) => o.canWin)) {
     throw createError({
       statusCode: 409,
-      message: 'Al menos una opción debe contar para el resultado.',
+      message: getApiErrorMessage(event, 'voteNoWinningOption'),
     })
   }
 
@@ -55,13 +55,13 @@ export default defineEventHandler(async (event) => {
     const [alreadyOpen] = await tx
       .select({ id: votes.id, eventId: votes.eventId, name: votes.name })
       .from(votes)
-      .where(and(eq(votes.open, true), ne(votes.id, voteId)))
+      .where(and(eq(votes.open, true), isNull(votes.deletedAt), ne(votes.id, voteId)))
       .limit(1)
 
     if (alreadyOpen) {
       throw createError({
         statusCode: 409,
-        message: 'Ya hay una votación abierta. Ciérrala antes de abrir otra.',
+        message: getApiErrorMessage(event, 'voteOpenConflict'),
         data: {
           openVoteId: alreadyOpen.id,
           openEventId: alreadyOpen.eventId,
@@ -76,7 +76,8 @@ export default defineEventHandler(async (event) => {
       .where(eq(votes.id, voteId))
       .returning()
 
-    if (!result) throw createError({ statusCode: 500, message: 'Error al abrir la votación' })
+    if (!result)
+      throw createError({ statusCode: 500, message: getApiErrorMessage(event, 'voteOpenFailed') })
 
     return result
   })
@@ -84,7 +85,7 @@ export default defineEventHandler(async (event) => {
   const options = await db
     .select()
     .from(voteOptions)
-    .where(eq(voteOptions.voteId, voteId))
+    .where(and(eq(voteOptions.voteId, voteId), isNull(voteOptions.deletedAt)))
     .orderBy(asc(voteOptions.order))
 
   emitVoteStatusChange({

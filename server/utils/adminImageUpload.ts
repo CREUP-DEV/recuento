@@ -2,6 +2,7 @@ import { createError } from 'h3'
 import { mkdir, unlink, writeFile } from 'node:fs/promises'
 import { basename, extname, isAbsolute, join, resolve } from 'node:path'
 import sharp from 'sharp'
+import { getDefaultApiErrorMessage } from './apiErrorMessages'
 import { logError } from './logger'
 
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif'] as const
@@ -20,27 +21,30 @@ function validateRasterMetadata(metadata: sharp.Metadata) {
   const frames = metadata.pages ?? 1
 
   if (width <= 0 || height <= 0) {
-    throw createError({ statusCode: 400, message: 'La imagen tiene dimensiones no válidas' })
+    throw createError({
+      statusCode: 400,
+      message: getDefaultApiErrorMessage('bannerInvalidImageDimensions'),
+    })
   }
 
   if (width > MAX_RASTER_DIMENSION || height > MAX_RASTER_DIMENSION) {
     throw createError({
       statusCode: 400,
-      message: `Dimensiones demasiado grandes (máx. ${MAX_RASTER_DIMENSION}px por lado)`,
+      message: `${getDefaultApiErrorMessage('bannerInvalidRasterDimensions')} (${MAX_RASTER_DIMENSION}px)`,
     })
   }
 
   if (frames > MAX_RASTER_FRAMES) {
     throw createError({
       statusCode: 400,
-      message: `Demasiados fotogramas (máx. ${MAX_RASTER_FRAMES})`,
+      message: `${getDefaultApiErrorMessage('bannerInvalidRasterFrames')} (${MAX_RASTER_FRAMES})`,
     })
   }
 
   if (width * height * frames > MAX_RASTER_PIXELS) {
     throw createError({
       statusCode: 400,
-      message: 'Demasiados píxeles para procesar de forma segura',
+      message: getDefaultApiErrorMessage('bannerInvalidRasterPixels'),
     })
   }
 }
@@ -95,14 +99,14 @@ export async function saveBannerImage({
   publicPath = '/banners',
 }: SaveBannerOptions): Promise<string> {
   if (data.length > MAX_FILE_SIZE) {
-    throw createError({ statusCode: 400, message: 'El archivo supera el tamaño máximo (5MB)' })
+    throw createError({ statusCode: 400, message: getDefaultApiErrorMessage('bannerTooLarge') })
   }
 
   const ext = extname(filename).toLowerCase()
   if (!ALLOWED_EXTENSIONS.includes(ext as (typeof ALLOWED_EXTENSIONS)[number])) {
     throw createError({
       statusCode: 400,
-      message: `Formato no permitido. Formatos admitidos: ${ALLOWED_EXTENSIONS.join(', ')}`,
+      message: `${getDefaultApiErrorMessage('bannerInvalidFile')} ${ALLOWED_EXTENSIONS.join(', ')}`,
     })
   }
 
@@ -120,7 +124,10 @@ export async function saveBannerImage({
       slug,
       inputBytes: data.length,
     })
-    throw createError({ statusCode: 400, message: 'La imagen subida no se ha podido procesar' })
+    throw createError({
+      statusCode: 400,
+      message: getDefaultApiErrorMessage('bannerInvalidFile'),
+    })
   }
 
   const outputFilename = `${slug}.webp`
@@ -140,7 +147,7 @@ export async function saveBannerImage({
       cwd: process.cwd(),
       outputBytes: outputData.length,
     })
-    throw createError({ statusCode: 500, message: 'No se ha podido guardar el banner' })
+    throw createError({ statusCode: 500, message: getDefaultApiErrorMessage('bannerSaveFailed') })
   }
 
   return `${publicPath}/${outputFilename}`

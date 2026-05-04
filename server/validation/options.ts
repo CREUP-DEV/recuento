@@ -1,8 +1,9 @@
 import { z } from 'zod'
+import { getDefaultApiErrorMessage } from '#server-utils/apiErrorMessages'
 
 const shortcutField = z
   .string()
-  .length(1, 'El atajo debe ser un único carácter')
+  .length(1, getDefaultApiErrorMessage('requiredShortcutSingleCharacter'))
   .nullable()
   .optional()
 
@@ -11,7 +12,7 @@ const HEX_COLOR_RE = /^#([0-9a-fA-F]{6})$/
 const colorField = z
   .string()
   .length(7)
-  .regex(HEX_COLOR_RE, 'Color no válido. Use formato hex (#RRGGBB).')
+  .regex(HEX_COLOR_RE, getDefaultApiErrorMessage('invalidColor'))
   .nullable()
   .optional()
 

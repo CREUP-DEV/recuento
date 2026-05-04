@@ -19,6 +19,7 @@ const isSubmitting = ref(false)
 interface CreateEventResponse {
   data: {
     id: string
+    slug: string
   }
 }
 
@@ -35,7 +36,7 @@ async function submit() {
       body: form.value,
     })
     toast.add({ title: t('admin.toasts.eventCreated'), color: 'success' })
-    router.push(localePath(`/admin/events/${result.data.id}`))
+    router.push(localePath(`/admin/events/${result.data.slug || result.data.id}`))
   } catch {
     toast.add({ title: t('admin.toasts.eventCreateError'), color: 'error' })
   } finally {

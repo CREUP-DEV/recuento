@@ -7,12 +7,14 @@ import { requireVoteInAdminScope } from '#server-utils/adminVoteScope'
 import { emitContentChanged, emitVoteStatusChange } from '#server-utils/sseManager'
 import { emitVoteCountUpdate } from '#server-utils/voteCountEmitter'
 import { updateVoteSchema } from '#validation/votes'
+import { generateVoteSlug } from '#server-utils/slug'
+import { writeAuditLog } from '#server-utils/auditLog'
 
 export default defineEventHandler(async (event) => {
   const eventId = getRouterParam(event, 'id')
   const voteId = getRouterParam(event, 'voteId')
   if (!eventId || !voteId) {
-    throw createError({ statusCode: 400, message: 'IDs requeridos' })
+    throw createError({ statusCode: 400, message: getApiErrorMessage(event, 'requiredIds') })
   }
 
   const currentVote = await requireVoteInAdminScope(eventId, voteId)
@@ -23,36 +25,40 @@ export default defineEventHandler(async (event) => {
   if (currentVote.open && data.visible === false) {
     throw createError({
       statusCode: 409,
-      message: 'No se puede ocultar una votación abierta.',
+      message: getApiErrorMessage(event, 'voteHiddenOpenBlocked'),
     })
   }
 
   if (currentVote.open && (data.minimumVotes !== undefined || data.maxWinners !== undefined)) {
     throw createError({
       statusCode: 409,
-      message: 'No se puede modificar la configuración de resultado con la votación abierta.',
+      message: getApiErrorMessage(event, 'voteResultSettingsLocked'),
     })
   }
 
   const updateData = pickDefined(data, [
     'name',
+    'slug',
     'visible',
     'minimumVotes',
     'maxWinners',
     'confettiEnabled',
   ])
+  if (data.name && data.slug === undefined && data.name !== currentVote.name) {
+    updateData.slug = await generateVoteSlug(data.name, db, voteId)
+  }
 
   if (Object.keys(updateData).length === 0) {
     throw createError({
       statusCode: 400,
-      message: 'No se han proporcionado campos para actualizar',
+      message: getApiErrorMessage(event, 'missingUpdateFields'),
     })
   }
 
   const [updated] = await db.update(votes).set(updateData).where(eq(votes.id, voteId)).returning()
 
   if (!updated) {
-    throw createError({ statusCode: 404, message: 'Votación no encontrada' })
+    throw createError({ statusCode: 404, message: getApiErrorMessage(event, 'voteNotFound') })
   }
 
   if (data.visible !== undefined) {
@@ -77,6 +83,13 @@ export default defineEventHandler(async (event) => {
   }
 
   emitContentChanged({ type: 'content-changed', scope: 'vote', eventId, voteId })
+  await writeAuditLog(event, {
+    action: 'vote.update',
+    targetType: 'vote',
+    targetId: voteId,
+    before: currentVote,
+    after: updated,
+  })
 
   return { data: updated }
 })

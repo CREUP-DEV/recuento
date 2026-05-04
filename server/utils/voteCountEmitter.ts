@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, isNull } from 'drizzle-orm'
 import { db } from '../db'
 import { votes, voteOptions, events } from '../db/schema'
 import { emitVoteUpdate, getSSESubscriberCount } from './sseManager'
@@ -31,7 +31,16 @@ export function emitVoteCountUpdate(voteId: string): void {
         .from(votes)
         .innerJoin(events, eq(events.id, votes.eventId))
         .leftJoin(voteOptions, eq(voteOptions.voteId, votes.id))
-        .where(and(eq(votes.id, voteId), eq(votes.visible, true), eq(events.visible, true)))
+        .where(
+          and(
+            eq(votes.id, voteId),
+            eq(votes.visible, true),
+            isNull(votes.deletedAt),
+            eq(events.visible, true),
+            isNull(events.deletedAt),
+            isNull(voteOptions.deletedAt)
+          )
+        )
         .orderBy(asc(voteOptions.order))
 
       if (rows.length === 0) return

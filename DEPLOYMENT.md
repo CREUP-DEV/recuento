@@ -46,6 +46,9 @@ COMPOSE_APP_SERVICE=app
 # Solo si hay un servicio PostgreSQL en ese compose
 COMPOSE_POSTGRES_SERVICE=postgres
 
+# Solo si NGINX vive en el mismo Compose y quieres recargarlo tras recrear la app
+COMPOSE_NGINX_SERVICE=nginx
+
 # Solo si quieres forzar login explícito desde el script
 # GHCR_LOGIN=true
 # GHCR_USERNAME=<usuario>
@@ -59,7 +62,10 @@ APPLY_MIGRATIONS_ON_DEPLOY=true
 Importante:
 
 - `COMPOSE_APP_SERVICE` y `COMPOSE_POSTGRES_SERVICE` son nombres de servicio de Compose, no `container_name`.
+- `COMPOSE_DIR` puede apuntar al directorio del proyecto o a un Compose raíz que incluya varios proyectos con `include`.
+- Cuando se usa un Compose raíz compartido, `deploy.sh` debe operar solo sobre `COMPOSE_APP_SERVICE`; no ejecutes `docker compose up -d` global con `IMAGE` exportado, porque otros servicios que usen `${IMAGE}` podrían arrancar con la imagen equivocada.
 - Si usas PostgreSQL externo, normalmente no necesitas `COMPOSE_POSTGRES_SERVICE`.
+- Si NGINX corre como servicio del mismo Compose, deja `COMPOSE_NGINX_SERVICE` definido para recargarlo tras recrear la app. Esto evita que conserve DNS interno antiguo del contenedor recreado.
 - Si ya hiciste `docker login ghcr.io` en local, no pongas `GHCR_USERNAME` ni `GHCR_TOKEN` en `.env`.
 - `NUXT_SITE_URL` y la configuración de Umami se inyectan en el build local de Nuxt. Si solo las defines en el `.env` del VPS, la imagen ya saldrá sin esa configuración.
 
@@ -68,6 +74,15 @@ En el VPS:
 - `docker-compose.yml`
 - `.env`
 - directorio persistente para banners
+
+También es válido que este proyecto viva como archivo incluido desde un Compose raíz compartido:
+
+```yaml
+include:
+  - recuento/docker-compose.yml
+```
+
+En ese caso, ajusta `COMPOSE_DIR` al directorio del Compose raíz y `COMPOSE_APP_SERVICE` al nombre real del servicio de Recuento.
 
 ## Preparación rápida del VPS
 
@@ -97,6 +112,9 @@ DATABASE_URL=postgresql://usuario:password@host:5432/recuento?schema=public
 APP_PORT=3000
 APP_BANNERS_DIR=./data/banners
 APPLY_MIGRATIONS_ON_DEPLOY=true
+COMPOSE_APP_SERVICE=app
+COMPOSE_POSTGRES_SERVICE=postgres
+COMPOSE_NGINX_SERVICE=nginx
 ```
 
 Opcionales:
@@ -147,9 +165,10 @@ El script:
 1. construye la imagen en local
 2. publica la imagen en GHCR usando la sesión actual de Docker o un login explícito si `GHCR_LOGIN=true`
 3. conecta por SSH
-4. hace `docker compose pull`
+4. hace `docker compose pull` solo del servicio app
 5. ejecuta migraciones si están activadas
-6. recrea contenedores
+6. recrea solo el servicio app
+7. recarga NGINX si `COMPOSE_NGINX_SERVICE` existe en el Compose
 
 ## Verificar
 
@@ -159,8 +178,10 @@ En el VPS:
 cd /ruta/del/compose
 docker compose ps
 docker compose logs --tail 100
-curl http://127.0.0.1:3000/health
+curl "http://127.0.0.1:${APP_PORT:-3000}/health"
 ```
+
+El healthcheck de la app se define en el `Dockerfile`; el Compose lo hereda de la imagen. Solo añade `healthcheck:` en Compose si necesitas sobrescribirlo para un entorno concreto. `APP_PORT` es el puerto publicado en el host; dentro del contenedor Nitro escucha en `3000`.
 
 En la web:
 
@@ -182,6 +203,7 @@ Login falla:
 
 - `COMPOSE_APP_SERVICE` apunta al `container_name` en vez del servicio
 - `COMPOSE_DIR` no es el directorio donde está el `docker-compose.yml`
+- en un Compose raíz compartido, algún servicio usa `${IMAGE}` y se ejecutó `docker compose up -d` sin acotar al servicio
 
 Los banners desaparecen:
 

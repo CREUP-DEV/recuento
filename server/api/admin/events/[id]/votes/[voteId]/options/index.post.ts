@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { db } from '#db'
 import { voteOptions } from '#db/schema'
 import { DEFAULT_OPTION_COLORS, VOTE_SHORTCUTS } from '~~/shared/constants/voteOptions'
@@ -9,7 +9,8 @@ import { createOptionSchema } from '#validation/options'
 export default defineEventHandler(async (event) => {
   const eventId = getRouterParam(event, 'id')
   const voteId = getRouterParam(event, 'voteId')
-  if (!eventId || !voteId) throw createError({ statusCode: 400, message: 'IDs requeridos' })
+  if (!eventId || !voteId)
+    throw createError({ statusCode: 400, message: getApiErrorMessage(event, 'requiredIds') })
 
   const body = await readBody(event)
   const data = createOptionSchema.parse(body)
@@ -18,7 +19,7 @@ export default defineEventHandler(async (event) => {
   if (vote.open) {
     throw createError({
       statusCode: 409,
-      message: 'No se pueden cambiar las opciones mientras la votación está abierta.',
+      message: getApiErrorMessage(event, 'optionChangeWhileOpen'),
     })
   }
 
@@ -30,12 +31,12 @@ export default defineEventHandler(async (event) => {
         shortcut: voteOptions.shortcut,
       })
       .from(voteOptions)
-      .where(eq(voteOptions.voteId, voteId))
+      .where(and(eq(voteOptions.voteId, voteId), isNull(voteOptions.deletedAt)))
 
     if (data.shortcut && existingOptions.some((option) => option.shortcut === data.shortcut)) {
       throw createError({
         statusCode: 409,
-        message: 'El atajo ya está en uso en esta votación.',
+        message: getApiErrorMessage(event, 'duplicateAccessShortcut'),
       })
     }
 

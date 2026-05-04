@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import { db } from '#db'
 import { votes, voteOptions } from '#db/schema'
 import { requireVoteInAdminScope } from '#server-utils/adminVoteScope'
@@ -9,13 +9,13 @@ export default defineEventHandler(async (event) => {
   const eventId = getRouterParam(event, 'id')
   const voteId = getRouterParam(event, 'voteId')
   if (!eventId || !voteId) {
-    throw createError({ statusCode: 400, message: 'IDs requeridos' })
+    throw createError({ statusCode: 400, message: getApiErrorMessage(event, 'requiredIds') })
   }
 
   const vote = await requireVoteInAdminScope(eventId, voteId)
 
   if (!vote.open) {
-    throw createError({ statusCode: 400, message: 'La votación ya está cerrada' })
+    throw createError({ statusCode: 400, message: getApiErrorMessage(event, 'voteAlreadyClosed') })
   }
 
   const result = await db.transaction(async (tx) => {
@@ -25,12 +25,16 @@ export default defineEventHandler(async (event) => {
       .where(and(eq(votes.id, voteId), eq(votes.open, true)))
       .returning()
 
-    if (!updated) throw createError({ statusCode: 409, message: 'La votación ya está cerrada' })
+    if (!updated)
+      throw createError({
+        statusCode: 409,
+        message: getApiErrorMessage(event, 'voteAlreadyClosed'),
+      })
 
     const options = await tx
       .select()
       .from(voteOptions)
-      .where(eq(voteOptions.voteId, voteId))
+      .where(and(eq(voteOptions.voteId, voteId), isNull(voteOptions.deletedAt)))
       .orderBy(asc(voteOptions.order))
 
     const { winnerIds } = calculateWinners(

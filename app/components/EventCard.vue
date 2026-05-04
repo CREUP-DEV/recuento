@@ -4,6 +4,7 @@ const localePath = useLocalePath()
 
 const props = defineProps<{
   id: string
+  slug?: string
   name: string
   banner: string | null
   startDate: string
@@ -13,7 +14,7 @@ const props = defineProps<{
 
 <template>
   <NuxtLink
-    :to="localePath(`/events/${props.id}`)"
+    :to="localePath(`/events/${props.slug || props.id}`)"
     class="motion-card group border-default bg-default block overflow-hidden rounded-xl border shadow-sm"
   >
     <div class="bg-muted relative aspect-7/2 w-full overflow-hidden">

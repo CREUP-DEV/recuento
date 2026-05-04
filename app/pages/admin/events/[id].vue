@@ -12,6 +12,7 @@ interface AdminEventVoteOption {
 
 interface AdminEventVote {
   id: string
+  slug: string
   name: string
   open: boolean
   visible: boolean
@@ -25,6 +26,7 @@ interface AdminEventVote {
 
 interface AdminEventData {
   id: string
+  slug: string
   name: string
   banner: string | null
   startDate: string
@@ -36,12 +38,13 @@ const { t } = useI18n()
 const toast = useToast()
 const route = useRoute()
 const localePath = useLocalePath()
-const eventId = route.params.id as string
+const eventParam = route.params.id as string
 
 const { data: eventData, refresh } = await useFetch<{ data: AdminEventData }>(
-  `/api/admin/events/${eventId}`
+  `/api/admin/events/${eventParam}`
 )
 const ev = computed(() => eventData.value?.data)
+const eventId = computed(() => ev.value?.id ?? eventParam)
 const expandedVoteIds = ref<Set<string>>(new Set())
 const allVotesExpanded = computed(() => {
   const votes = ev.value?.votes ?? []
@@ -49,15 +52,16 @@ const allVotesExpanded = computed(() => {
 })
 
 if (!ev.value) {
-  throw createError({ statusCode: 404, statusMessage: 'Evento no encontrado' })
+  throw createError({ statusCode: 404, statusMessage: t('errors.eventNotFound') })
 }
 
 function toDateInput(ts: string | null | undefined): string {
   return ts ? new Date(ts).toISOString().slice(0, 10) : ''
 }
 
-function syncEditForm(data: Pick<AdminEventData, 'name' | 'startDate' | 'endDate'>) {
+function syncEditForm(data: Pick<AdminEventData, 'name' | 'slug' | 'startDate' | 'endDate'>) {
   editForm.value.name = data.name
+  editForm.value.slug = data.slug
   editForm.value.startDate = toDateInput(data.startDate)
   editForm.value.endDate = toDateInput(data.endDate)
 }
@@ -66,6 +70,7 @@ function syncEditForm(data: Pick<AdminEventData, 'name' | 'startDate' | 'endDate
 
 const editForm = ref({
   name: ev.value?.name ?? '',
+  slug: ev.value?.slug ?? '',
   startDate: toDateInput(ev.value?.startDate),
   endDate: toDateInput(ev.value?.endDate),
 })
@@ -80,6 +85,7 @@ const isFormDirty = computed(() => {
   if (!ev.value) return false
   return (
     editForm.value.name !== ev.value.name ||
+    editForm.value.slug !== ev.value.slug ||
     editForm.value.startDate !== toDateInput(ev.value.startDate) ||
     editForm.value.endDate !== toDateInput(ev.value.endDate)
   )
@@ -92,8 +98,8 @@ useEventListener('beforeunload', (e: BeforeUnloadEvent) => {
 async function updateEvent() {
   try {
     const { data } = await $fetch<{
-      data: Pick<AdminEventData, 'id' | 'name' | 'banner' | 'startDate' | 'endDate'>
-    }>(`/api/admin/events/${eventId}`, {
+      data: Pick<AdminEventData, 'id' | 'name' | 'slug' | 'banner' | 'startDate' | 'endDate'>
+    }>(`/api/admin/events/${eventId.value}`, {
       method: 'PATCH',
       body: editForm.value,
     })
@@ -137,7 +143,7 @@ async function uploadBanner(e: Event) {
   formData.append('file', file)
 
   try {
-    await $fetch(`/api/admin/events/${eventId}/banner`, {
+    await $fetch(`/api/admin/events/${eventId.value}/banner`, {
       method: 'POST',
       body: formData,
     })
@@ -158,7 +164,7 @@ const isRemovingBanner = ref(false)
 async function removeBanner() {
   isRemovingBanner.value = true
   try {
-    await $fetch(`/api/admin/events/${eventId}`, {
+    await $fetch(`/api/admin/events/${eventId.value}`, {
       method: 'PATCH',
       body: { banner: null },
     })
@@ -182,10 +188,13 @@ async function addVote() {
   if (!newVoteName.value.trim()) return
   isAddingVote.value = true
   try {
-    const { data } = await $fetch<{ data: AdminEventVote }>(`/api/admin/events/${eventId}/votes`, {
-      method: 'POST',
-      body: { name: newVoteName.value },
-    })
+    const { data } = await $fetch<{ data: AdminEventVote }>(
+      `/api/admin/events/${eventId.value}/votes`,
+      {
+        method: 'POST',
+        body: { name: newVoteName.value },
+      }
+    )
     toast.add({ title: t('admin.toasts.voteCreated'), color: 'success' })
     newVoteName.value = ''
     expandedVoteIds.value = new Set([data.id])
@@ -206,7 +215,7 @@ async function addVote() {
 async function deleteEvent() {
   isDeletingEvent.value = true
   try {
-    await $fetch(`/api/admin/events/${eventId}`, { method: 'DELETE' })
+    await $fetch(`/api/admin/events/${eventId.value}`, { method: 'DELETE' })
     toast.add({ title: t('admin.toasts.eventDeleted'), color: 'success' })
     await navigateTo(localePath('/admin/events'))
   } catch {
@@ -262,7 +271,7 @@ function toggleAllVotePanels() {
 
 // ─── SSE: refresh on external vote-status-change ──────────────────────────────
 
-useSSEConnection({
+const { isConnected: adminRealtimeConnected } = useSSEConnection({
   url: '/api/sse/votes',
   onEvent(type, data) {
     if (type === 'vote-status-change' || type === 'content-changed') {
@@ -278,6 +287,9 @@ useSSEConnection({
     }
   },
 })
+const adminRealtimeStatus = computed(() =>
+  adminRealtimeConnected.value ? t('admin.realtimeConnected') : t('admin.realtimeDisconnected')
+)
 </script>
 
 <template>
@@ -301,6 +313,17 @@ useSSEConnection({
       >
         {{ t('admin.deleteEvent') }}
       </UButton>
+    </div>
+    <div
+      class="border-default bg-default inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+      aria-live="polite"
+    >
+      <span
+        class="size-2 rounded-full"
+        :class="adminRealtimeConnected ? 'bg-green-500' : 'bg-amber-500'"
+        aria-hidden="true"
+      />
+      {{ adminRealtimeStatus }}
     </div>
 
     <!-- Event details card -->
@@ -368,6 +391,14 @@ useSSEConnection({
       <form class="space-y-4" @submit.prevent="updateEvent">
         <UFormField :label="t('admin.name')" class="w-full">
           <UInput v-model="editForm.name" size="xl" class="w-full text-xl" />
+        </UFormField>
+        <UFormField :label="t('admin.slug')" class="w-full">
+          <UInput
+            v-model="editForm.slug"
+            size="lg"
+            class="w-full font-mono"
+            :placeholder="t('admin.slugPlaceholder')"
+          />
         </UFormField>
         <div class="grid gap-4 sm:grid-cols-2">
           <UFormField :label="t('events.startDate')">

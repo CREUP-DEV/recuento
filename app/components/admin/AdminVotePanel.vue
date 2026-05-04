@@ -24,6 +24,7 @@ interface VoteOption {
 
 interface Vote {
   id: string
+  slug: string
   name: string
   open: boolean
   visible: boolean
@@ -196,14 +197,13 @@ async function toggleOpen() {
     emit('refresh')
   } catch (err: unknown) {
     const apiErr = err as {
-      data?: { message?: string; openVoteId?: string; openEventId?: string; openVoteName?: string }
+      data?: { openVoteId?: string; openEventId?: string; openVoteName?: string }
     }
-    const msg = apiErr.data?.message
     const openEventId = apiErr.data?.openEventId
     const openVoteName = apiErr.data?.openVoteName
     if (openEventId) {
       toast.add({
-        title: msg ?? t('common.error'),
+        title: t('admin.toasts.openVoteBlocked'),
         description: t('admin.toasts.openVoteConflict', { name: openVoteName }),
         color: 'warning',
         actions: [
@@ -216,7 +216,7 @@ async function toggleOpen() {
         ],
       })
     } else {
-      toast.add({ title: msg ?? t('common.error'), color: 'error' })
+      toast.add({ title: t('common.error'), color: 'error' })
     }
     umTrackEvent('vote_open_conflict', { voteId: props.vote.id })
   } finally {
@@ -590,6 +590,7 @@ const settingsMinimumVotes = ref<string>(
 const settingsMaxWinners = ref<string>(
   props.vote.maxWinners !== null ? String(props.vote.maxWinners) : ''
 )
+const settingsSlug = ref(props.vote.slug)
 const confettiToggle = ref(props.vote.confettiEnabled)
 
 watch(
@@ -608,6 +609,12 @@ watch(
   () => props.vote.confettiEnabled,
   (val) => {
     confettiToggle.value = val
+  }
+)
+watch(
+  () => props.vote.slug,
+  (val) => {
+    settingsSlug.value = val
   }
 )
 
@@ -638,6 +645,27 @@ async function updateVoteSettings(field: 'minimumVotes' | 'maxWinners', rawValue
     emit('update-vote', { [field]: parsed })
     toast.add({ title: t('admin.toasts.voteSettingsUpdated'), color: 'success' })
   } catch {
+    toast.add({ title: t('admin.toasts.voteSettingsError'), color: 'error' })
+  }
+}
+
+async function updateVoteSlug() {
+  const slug = settingsSlug.value.trim()
+  if (!slug || slug === props.vote.slug) return
+
+  try {
+    const response = await $fetch<{ data: Vote }>(
+      `/api/admin/events/${props.eventId}/votes/${props.vote.id}`,
+      {
+        method: 'PATCH',
+        body: { slug },
+      }
+    )
+    emit('update-vote', { slug: response.data.slug })
+    settingsSlug.value = response.data.slug
+    toast.add({ title: t('admin.toasts.voteSettingsUpdated'), color: 'success' })
+  } catch {
+    settingsSlug.value = props.vote.slug
     toast.add({ title: t('admin.toasts.voteSettingsError'), color: 'error' })
   }
 }
@@ -734,7 +762,7 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
             :class="expanded ? 'rotate-90' : ''"
             aria-hidden="true"
           />
-          <span class="min-w-0 leading-snug font-semibold break-words">{{ vote.name }}</span>
+          <span class="wrap-break-words min-w-0 leading-snug font-semibold">{{ vote.name }}</span>
         </button>
         <UButton
           v-if="!vote.open"
@@ -866,6 +894,20 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
         >
           <div class="overflow-hidden">
             <div class="px-4 pb-4" :class="vote.open ? 'pointer-events-none opacity-60' : ''">
+              <div class="mb-4 flex flex-col gap-1">
+                <label class="text-muted text-sm font-medium" :for="`setting-slug-${vote.id}`">
+                  {{ t('admin.slug') }}
+                </label>
+                <UInput
+                  :id="`setting-slug-${vote.id}`"
+                  v-model="settingsSlug"
+                  size="sm"
+                  class="font-mono"
+                  :placeholder="t('admin.slugPlaceholder')"
+                  @blur="updateVoteSlug"
+                  @keydown.enter.prevent="updateVoteSlug"
+                />
+              </div>
               <div class="flex flex-wrap gap-4">
                 <div class="flex min-w-40 flex-1 flex-col gap-1">
                   <label class="text-muted text-sm font-medium" for="setting-min-votes">
@@ -1190,7 +1232,6 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
             </dd>
           </div>
         </dl>
-        <p class="text-muted mt-4 text-sm">{{ t('admin.optionSwitchHelp') }}</p>
         <div class="mt-6 flex justify-end">
           <UButton color="neutral" variant="subtle" @click="showSettingsModal = false">
             {{ t('admin.close') }}

@@ -4,6 +4,7 @@ import { getOptionalConfigUrl, requireConfigString } from '~~/shared/utils/confi
 import { db } from '../db'
 import { users, sessions, accounts, verifications } from '../db/schema'
 import { isAdminEmailAuthorized, normalizeAdminEmail } from './adminAccess'
+import { getDefaultApiErrorMessage } from './apiErrorMessages'
 
 interface SignInUser {
   id: string
@@ -91,7 +92,7 @@ export const auth = betterAuth({
 
       if (!normalizedEmail || !(await isAdminEmailAuthorized(normalizedEmail))) {
         return {
-          error: 'Acceso no autorizado. Solo los administradores pueden acceder.',
+          error: getDefaultApiErrorMessage('unauthorizedAdminOnly'),
         }
       }
       return { success: true }

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { getDefaultApiErrorMessage } from '#server-utils/apiErrorMessages'
 
 function parseDateValue(value: string) {
   return new Date(value).getTime()
@@ -19,30 +20,39 @@ const dateString = z
   .string()
   .regex(
     /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/,
-    'Formato de fecha no válido (use YYYY-MM-DD o YYYY-MM-DDTHH:MM)'
+    getDefaultApiErrorMessage('invalidDateFormat')
   )
+
+const slugField = z
+  .string()
+  .trim()
+  .min(1)
+  .max(100)
+  .regex(/^[a-z0-9-]+$/, getDefaultApiErrorMessage('invalidSlug'))
 
 export const createEventSchema = z
   .object({
     name: z.string().min(1).max(500),
+    slug: slugField.optional(),
     startDate: dateString,
     endDate: dateString,
     visible: z.boolean().optional().default(true),
   })
   .refine((data) => hasValidDateRange(data.startDate, data.endDate), {
-    message: 'La fecha de fin debe ser posterior a la de inicio',
+    message: getDefaultApiErrorMessage('invalidDateRange'),
     path: ['endDate'],
   })
 
 export const updateEventSchema = z
   .object({
     name: z.string().min(1).max(500).optional(),
+    slug: slugField.optional(),
     startDate: dateString.optional(),
     endDate: dateString.optional(),
     visible: z.boolean().optional(),
     banner: z
       .string()
-      .regex(/^\/banners\/[\w-]+\.webp$/, 'Ruta de banner no válida')
+      .regex(/^\/banners\/[\w-]+\.webp$/, getDefaultApiErrorMessage('invalidBannerPath'))
       .nullable()
       .optional(),
   })
@@ -52,7 +62,7 @@ export const updateEventSchema = z
       return true
     },
     {
-      message: 'La fecha de fin debe ser posterior a la de inicio',
+      message: getDefaultApiErrorMessage('invalidDateRange'),
       path: ['endDate'],
     }
   )

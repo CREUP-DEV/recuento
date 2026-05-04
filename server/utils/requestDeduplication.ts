@@ -1,27 +1,32 @@
+import { sql } from 'drizzle-orm'
+import { db } from '../db'
+import { idempotencyKeys } from '../db/schema'
+
 const WINDOW_MS = 5 * 60 * 1000
-const MAX_PER_VOTE = 500
 
-const store = new Map<string, Map<string, number>>()
-
-export function isDuplicateRequest(voteId: string, nonce: string): boolean {
-  const now = Date.now()
-  let voteNonces = store.get(voteId)
-  if (!voteNonces) {
-    voteNonces = new Map()
-    store.set(voteId, voteNonces)
+export async function isDuplicateRequest(voteId: string, nonce: string): Promise<boolean> {
+  const trimmedNonce = nonce.trim()
+  if (!trimmedNonce || trimmedNonce.length > 200) {
+    return false
   }
 
-  for (const [n, ts] of voteNonces) {
-    if (now - ts > WINDOW_MS) voteNonces.delete(n)
-  }
+  const scope = `vote:${voteId}`
+  const expiresAt = new Date(Date.now() + WINDOW_MS)
 
-  if (voteNonces.has(nonce)) return true
+  await db
+    .delete(idempotencyKeys)
+    .where(sql`${idempotencyKeys.expiresAt} < now()`)
+    .catch(() => undefined)
 
-  if (voteNonces.size >= MAX_PER_VOTE) {
-    const oldest = voteNonces.keys().next().value
-    if (oldest) voteNonces.delete(oldest)
-  }
+  const inserted = await db
+    .insert(idempotencyKeys)
+    .values({
+      scope,
+      key: trimmedNonce,
+      expiresAt,
+    })
+    .onConflictDoNothing({ target: [idempotencyKeys.scope, idempotencyKeys.key] })
+    .returning({ id: idempotencyKeys.id })
 
-  voteNonces.set(nonce, now)
-  return false
+  return inserted.length === 0
 }

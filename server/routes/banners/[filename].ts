@@ -4,6 +4,7 @@ import {
   getBannerAbsolutePath,
   getBannerFilenameFromPublicPath,
 } from '#server-utils/adminImageUpload'
+import { getApiErrorMessage } from '#server-utils/apiErrorMessages'
 
 const ALLOWED_BANNER_EXTENSIONS = new Set(['.webp'])
 
@@ -11,14 +12,14 @@ export default defineEventHandler(async (event) => {
   const filenameParam = getRouterParam(event, 'filename')
 
   if (!filenameParam) {
-    throw createError({ statusCode: 404, message: 'Banner no encontrado' })
+    throw createError({ statusCode: 404, message: getApiErrorMessage(event, 'bannerNotFound') })
   }
 
   const filename = getBannerFilenameFromPublicPath(filenameParam)
   const extension = filename ? extname(filename).toLowerCase() : ''
 
   if (!filename || !ALLOWED_BANNER_EXTENSIONS.has(extension)) {
-    throw createError({ statusCode: 404, message: 'Banner no encontrado' })
+    throw createError({ statusCode: 404, message: getApiErrorMessage(event, 'bannerNotFound') })
   }
 
   try {
@@ -43,6 +44,6 @@ export default defineEventHandler(async (event) => {
 
     return file
   } catch {
-    throw createError({ statusCode: 404, message: 'Banner no encontrado' })
+    throw createError({ statusCode: 404, message: getApiErrorMessage(event, 'bannerNotFound') })
   }
 })

@@ -1,15 +1,18 @@
-import { and, count, eq } from 'drizzle-orm'
+import { and, count, eq, isNull } from 'drizzle-orm'
 import { db } from '#db'
 import { events, votes } from '#db/schema'
 
 export default defineEventHandler(async () => {
   const [[totalEvents], [activeEvents], [openVotes]] = await Promise.all([
-    db.select({ value: count() }).from(events),
-    db.select({ value: count() }).from(events).where(eq(events.visible, true)),
+    db.select({ value: count() }).from(events).where(isNull(events.deletedAt)),
+    db
+      .select({ value: count() })
+      .from(events)
+      .where(and(eq(events.visible, true), isNull(events.deletedAt))),
     db
       .select({ value: count() })
       .from(votes)
-      .where(and(eq(votes.open, true))),
+      .where(and(eq(votes.open, true), isNull(votes.deletedAt))),
   ])
 
   return {

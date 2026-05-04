@@ -66,12 +66,22 @@ const navigationItems = computed<NavigationMenuItem[][]>(() => [
         if (isMobileSidebar.value) sidebarOpen.value = false
       },
     },
+    {
+      label: t('admin.access'),
+      to: getLocalizedAdminRoute(ADMIN_ROUTES.access),
+      icon: 'i-tabler-shield-lock',
+      active: isNavItemActive(ADMIN_ROUTES.access),
+      onSelect: () => {
+        if (isMobileSidebar.value) sidebarOpen.value = false
+      },
+    },
   ],
 ])
 
 const allNavItems = computed(() => [
   { label: t('admin.dashboard'), to: getLocalizedAdminRoute(ADMIN_ROUTES.dashboard) },
   { label: t('admin.events'), to: getLocalizedAdminRoute(ADMIN_ROUTES.events) },
+  { label: t('admin.access'), to: getLocalizedAdminRoute(ADMIN_ROUTES.access) },
 ])
 
 const currentPageLabel = computed(
@@ -84,15 +94,20 @@ const toggleSidebarLabel = computed(() =>
   sidebarOpen.value ? t('accessibility.collapseSidebar') : t('accessibility.expandSidebar')
 )
 
-const defaultLocaleItem = { code: 'es', flag: 'i-circle-flags-es', name: 'Español' } as const
+const defaultLocaleItem = computed(
+  () => ({ code: 'es', flag: 'i-circle-flags-es', name: t('locales.es') }) as const
+)
 
-const localeItems = [
-  { code: 'es', flag: 'i-circle-flags-es', name: 'Español' },
-  { code: 'en', flag: 'i-circle-flags-gb', name: 'English' },
-] as const
+const localeItems = computed(
+  () =>
+    [
+      { code: 'es', flag: 'i-circle-flags-es', name: t('locales.es') },
+      { code: 'en', flag: 'i-circle-flags-gb', name: t('locales.en') },
+    ] as const
+)
 
 const currentLocale = computed(
-  () => localeItems.find((item) => item.code === locale.value) ?? defaultLocaleItem
+  () => localeItems.value.find((item) => item.code === locale.value) ?? defaultLocaleItem.value
 )
 
 async function switchLocale(code: 'es' | 'en') {

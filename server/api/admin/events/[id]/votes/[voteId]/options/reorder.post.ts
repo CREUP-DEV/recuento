@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import { db } from '#db'
 import { voteOptions } from '#db/schema'
 import { requireVoteInAdminScope } from '#server-utils/adminVoteScope'
@@ -15,7 +15,8 @@ const reorderSchema = z.object({
 export default defineEventHandler(async (event) => {
   const eventId = getRouterParam(event, 'id')
   const voteId = getRouterParam(event, 'voteId')
-  if (!eventId || !voteId) throw createError({ statusCode: 400, message: 'IDs requeridos' })
+  if (!eventId || !voteId)
+    throw createError({ statusCode: 400, message: getApiErrorMessage(event, 'requiredIds') })
 
   const body = await readBody(event)
   const { orderedIds, colorOverrides } = reorderSchema.parse(body)
@@ -24,7 +25,7 @@ export default defineEventHandler(async (event) => {
   if (vote.open) {
     throw createError({
       statusCode: 409,
-      message: 'No se pueden cambiar las opciones mientras la votación está abierta.',
+      message: getApiErrorMessage(event, 'optionChangeWhileOpen'),
     })
   }
 
@@ -32,7 +33,7 @@ export default defineEventHandler(async (event) => {
     const existingOptions = await tx
       .select({ id: voteOptions.id })
       .from(voteOptions)
-      .where(eq(voteOptions.voteId, voteId))
+      .where(and(eq(voteOptions.voteId, voteId), isNull(voteOptions.deletedAt)))
       .orderBy(asc(voteOptions.order))
 
     const existingIds = existingOptions.map((option) => option.id).sort()
@@ -46,7 +47,7 @@ export default defineEventHandler(async (event) => {
     if (hasDuplicates || !sameSet) {
       throw createError({
         statusCode: 400,
-        message: 'Las opciones enviadas no coinciden con las opciones actuales de la votación.',
+        message: getApiErrorMessage(event, 'invalidOptionSet'),
       })
     }
 
@@ -60,7 +61,7 @@ export default defineEventHandler(async (event) => {
                 ELSE CONCAT('__tmp__', id)
               END,
               updated_at = now()
-          WHERE vote_id = ${voteId}`
+          WHERE vote_id = ${voteId} AND deleted_at IS NULL`
     )
 
     const orderCases = orderedIds.map((id, idx) => sql`WHEN ${id} THEN ${sql.raw(String(idx))}`)
@@ -70,7 +71,7 @@ export default defineEventHandler(async (event) => {
           SET "order"  = CASE id ${sql.join(orderCases, sql` `)} END,
               shortcut = CASE id ${sql.join(shortcutCases, sql` `)} END,
               updated_at = now()
-          WHERE vote_id = ${voteId}`
+          WHERE vote_id = ${voteId} AND deleted_at IS NULL`
     )
 
     if (colorOverrides && Object.keys(colorOverrides).length > 0) {
@@ -81,14 +82,14 @@ export default defineEventHandler(async (event) => {
         sql`UPDATE vote_options
             SET color = CASE id ${sql.join(colorCases, sql` `)} ELSE color END,
                 updated_at = now()
-            WHERE vote_id = ${voteId}`
+            WHERE vote_id = ${voteId} AND deleted_at IS NULL`
       )
     }
 
     return tx
       .select()
       .from(voteOptions)
-      .where(eq(voteOptions.voteId, voteId))
+      .where(and(eq(voteOptions.voteId, voteId), isNull(voteOptions.deletedAt)))
       .orderBy(asc(voteOptions.order))
   })
 

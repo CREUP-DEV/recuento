@@ -1,16 +1,12 @@
-import { and, eq } from 'drizzle-orm'
-import { unlink } from 'node:fs/promises'
+import { and, eq, isNull } from 'drizzle-orm'
 import { db } from '#db'
 import { events, votes } from '#db/schema'
-import {
-  getBannerAbsolutePath,
-  getBannerFilenameFromPublicPath,
-} from '#server-utils/adminImageUpload'
 import { emitContentChanged, emitVoteStatusChange } from '#server-utils/sseManager'
+import { writeAuditLog } from '#server-utils/auditLog'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
-  if (!id) throw createError({ statusCode: 400, message: 'ID requerido' })
+  if (!id) throw createError({ statusCode: 400, message: getApiErrorMessage(event, 'requiredId') })
 
   const [openVote] = await db
     .select({
@@ -23,22 +19,19 @@ export default defineEventHandler(async (event) => {
     .limit(1)
 
   const [deleted] = await db
-    .delete(events)
-    .where(eq(events.id, id))
-    .returning({ id: events.id, banner: events.banner })
+    .update(events)
+    .set({ visible: false, deletedAt: new Date() })
+    .where(and(eq(events.id, id), isNull(events.deletedAt)))
+    .returning()
 
   if (!deleted) {
-    throw createError({ statusCode: 404, message: 'Evento no encontrado' })
+    throw createError({ statusCode: 404, message: getApiErrorMessage(event, 'eventNotFound') })
   }
 
-  if (deleted.banner) {
-    const filename = getBannerFilenameFromPublicPath(deleted.banner)
-    if (filename) {
-      await unlink(getBannerAbsolutePath(filename)).catch(() => {
-        // File already gone — not an error
-      })
-    }
-  }
+  await db
+    .update(votes)
+    .set({ visible: false, open: false, deletedAt: new Date() })
+    .where(eq(votes.eventId, id))
 
   if (openVote) {
     emitVoteStatusChange({
@@ -53,6 +46,12 @@ export default defineEventHandler(async (event) => {
   }
 
   emitContentChanged({ type: 'content-changed', scope: 'events', eventId: id })
+  await writeAuditLog(event, {
+    action: 'event.delete',
+    targetType: 'event',
+    targetId: id,
+    before: deleted,
+  })
 
   return { success: true }
 })

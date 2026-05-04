@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import { createError } from 'h3'
 import { auth } from './auth'
 import { isAdminEmailAuthorized, normalizeAdminEmail } from './adminAccess'
+import { getDefaultApiErrorMessage } from './apiErrorMessages'
 
 export type AdminSession = Awaited<ReturnType<typeof auth.api.getSession>>
 
@@ -17,7 +18,7 @@ export async function requireAuth(event: H3Event) {
   if (!session) {
     throw createError({
       statusCode: 401,
-      message: 'No autorizado',
+      message: getDefaultApiErrorMessage('unauthorized'),
     })
   }
 
@@ -25,7 +26,7 @@ export async function requireAuth(event: H3Event) {
   if (!normalizedEmail || !(await isAdminEmailAuthorized(normalizedEmail))) {
     throw createError({
       statusCode: 403,
-      message: 'Acceso no autorizado',
+      message: getDefaultApiErrorMessage('forbidden'),
     })
   }
 

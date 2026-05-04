@@ -176,11 +176,14 @@ watch(isEditingCount, async (editing) => {
           ref="colorInput"
           type="color"
           class="sr-only"
-          aria-hidden="true"
           tabindex="-1"
+          :aria-label="t('admin.selectedColor', { color: option.color ?? defaultColor })"
           :value="option.color ?? defaultColor"
           @change.stop="onColorChange"
         />
+        <output v-if="canShowColorControls" class="sr-only" aria-live="polite">
+          {{ t('admin.selectedColor', { color: option.color ?? defaultColor }) }}
+        </output>
         <span
           v-if="!canShowColorControls"
           class="block size-4 shrink-0 self-center rounded-full ring-1 ring-black/5"

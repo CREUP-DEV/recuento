@@ -5,15 +5,20 @@ const localePath = useLocalePath()
 const { activeVote } = useActiveVote()
 const { session } = useAuth()
 
-const defaultLocaleItem = { code: 'es', flag: 'i-circle-flags-es', name: 'Español' } as const
+const defaultLocaleItem = computed(
+  () => ({ code: 'es', flag: 'i-circle-flags-es', name: t('locales.es') }) as const
+)
 
-const localeItems = [
-  { code: 'es', flag: 'i-circle-flags-es', name: 'Español' },
-  { code: 'en', flag: 'i-circle-flags-gb', name: 'English' },
-] as const
+const localeItems = computed(
+  () =>
+    [
+      { code: 'es', flag: 'i-circle-flags-es', name: t('locales.es') },
+      { code: 'en', flag: 'i-circle-flags-gb', name: t('locales.en') },
+    ] as const
+)
 
 const currentLocale = computed(
-  () => localeItems.find((l) => l.code === locale.value) ?? defaultLocaleItem
+  () => localeItems.value.find((l) => l.code === locale.value) ?? defaultLocaleItem.value
 )
 
 async function switchLocale(code: 'es' | 'en') {

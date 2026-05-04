@@ -1,7 +1,7 @@
 /**
  * Returns up to 2 uppercase initials from a name or email string.
  * Examples:
- *   "María García" → "MG"
+ *   "Mary Garcia" -> "MG"
  *   "admin@creup.es" → "AD"
  *   "Juan" → "JU"
  */

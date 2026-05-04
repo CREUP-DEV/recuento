@@ -1,18 +1,24 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { db } from '#db'
 import { events, votes } from '#db/schema'
 import { deleteBannerFile } from '#server-utils/adminImageUpload'
 import { pickDefined } from '#server-utils/pickDefined'
 import { emitContentChanged, emitVoteStatusChange } from '#server-utils/sseManager'
 import { updateEventSchema, validateEventDateRange } from '#validation/events'
+import { generateEventSlug } from '#server-utils/slug'
+import { writeAuditLog } from '#server-utils/auditLog'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
-  if (!id) throw createError({ statusCode: 400, message: 'ID requerido' })
+  if (!id) throw createError({ statusCode: 400, message: getApiErrorMessage(event, 'requiredId') })
 
-  const [existing] = await db.select().from(events).where(eq(events.id, id)).limit(1)
+  const [existing] = await db
+    .select()
+    .from(events)
+    .where(and(eq(events.id, id), sql`${events.deletedAt} IS NULL`))
+    .limit(1)
   if (!existing) {
-    throw createError({ statusCode: 404, message: 'Evento no encontrado' })
+    throw createError({ statusCode: 404, message: getApiErrorMessage(event, 'eventNotFound') })
   }
 
   const body = await readBody(event)
@@ -24,7 +30,7 @@ export default defineEventHandler(async (event) => {
   if (!validateEventDateRange(startDate, endDate)) {
     throw createError({
       statusCode: 400,
-      message: 'La fecha de fin debe ser posterior a la de inicio',
+      message: getApiErrorMessage(event, 'invalidDateRange'),
     })
   }
 
@@ -38,17 +44,27 @@ export default defineEventHandler(async (event) => {
     if (openVote) {
       throw createError({
         statusCode: 409,
-        message: 'No se puede ocultar un evento con una votación abierta.',
+        message: getApiErrorMessage(event, 'eventHasOpenVote'),
       })
     }
   }
 
-  const updateData = pickDefined(data, ['name', 'startDate', 'endDate', 'visible', 'banner'])
+  const updateData = pickDefined(data, [
+    'name',
+    'slug',
+    'startDate',
+    'endDate',
+    'visible',
+    'banner',
+  ])
+  if (data.name && data.slug === undefined && data.name !== existing.name) {
+    updateData.slug = await generateEventSlug(data.name, db, id)
+  }
 
   if (Object.keys(updateData).length === 0) {
     throw createError({
       statusCode: 400,
-      message: 'No se han proporcionado campos para actualizar',
+      message: getApiErrorMessage(event, 'missingUpdateFields'),
     })
   }
 
@@ -84,6 +100,13 @@ export default defineEventHandler(async (event) => {
   }
 
   emitContentChanged({ type: 'content-changed', scope: 'event', eventId: id })
+  await writeAuditLog(event, {
+    action: 'event.update',
+    targetType: 'event',
+    targetId: id,
+    before: existing,
+    after: updated,
+  })
 
   return { data: updated }
 })

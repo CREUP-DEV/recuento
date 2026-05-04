@@ -100,7 +100,7 @@ docker-compose.production.example.yml
 ### Error Handling
 
 - Use `createError({ statusCode, message })` — never throw plain errors in handlers.
-- Admin endpoint errors: Spanish strings are acceptable.
+- Do not hardcode user-facing error text in route handlers. Prefer stable, language-neutral error keys or generic internal messages, and translate displayed messages in the client with Nuxt i18n.
 
 ### Health Check
 

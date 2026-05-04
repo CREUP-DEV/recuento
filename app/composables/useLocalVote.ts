@@ -11,6 +11,7 @@ export interface LocalVoteOption {
 }
 
 export interface LocalVoteState {
+  version: number
   name: string
   open: boolean
   options: LocalVoteOption[]
@@ -20,14 +21,27 @@ export interface LocalVoteState {
   maxWinners: number | null
 }
 
-const DEFAULT_STATE: LocalVoteState = {
-  name: 'Votación temporal',
-  open: false,
-  options: [],
-  history: [],
-  redoHistory: [],
-  minimumVotes: null,
-  maxWinners: null,
+const LOCAL_VOTE_STATE_VERSION = 2
+
+function createDefaultState(name: string): LocalVoteState {
+  return {
+    version: LOCAL_VOTE_STATE_VERSION,
+    name,
+    open: false,
+    options: [],
+    history: [],
+    redoHistory: [],
+    minimumVotes: null,
+    maxWinners: null,
+  }
+}
+
+const LEGACY_DEFAULT_NAMES = new Set(['Votación local', 'Votación temporal', 'Temporary vote'])
+
+function makeDefaultState(): LocalVoteState {
+  const { t } = useI18n()
+
+  return createDefaultState(t('localVote.title'))
 }
 
 function makeId() {
@@ -40,7 +54,10 @@ function reassignShortcuts(options: LocalVoteOption[]) {
   })
 }
 
-function normalizeState(value: Partial<LocalVoteState> | null | undefined): LocalVoteState {
+function normalizeState(
+  value: Partial<LocalVoteState> | null | undefined,
+  defaultState: LocalVoteState
+): LocalVoteState {
   const options = Array.isArray(value?.options)
     ? value.options.map((o) => ({ ...o, canWin: typeof o.canWin === 'boolean' ? o.canWin : true }))
     : []
@@ -54,8 +71,9 @@ function normalizeState(value: Partial<LocalVoteState> | null | undefined): Loca
     : []
 
   return {
-    name: value?.name && value.name !== 'Votación local' ? value.name : DEFAULT_STATE.name,
-    open: typeof value?.open === 'boolean' ? value.open : DEFAULT_STATE.open,
+    version: LOCAL_VOTE_STATE_VERSION,
+    name: value?.name && !LEGACY_DEFAULT_NAMES.has(value.name) ? value.name : defaultState.name,
+    open: typeof value?.open === 'boolean' ? value.open : defaultState.open,
     options,
     history,
     redoHistory,
@@ -77,10 +95,11 @@ function removeLastHistoryEntry(history: string[], optionId: string) {
 }
 
 export function useLocalVote() {
+  const defaultState = makeDefaultState()
   const state = useLocalStorage<LocalVoteState>('recuento-local-vote', () => ({
-    ...DEFAULT_STATE,
+    ...defaultState,
   }))
-  state.value = normalizeState(state.value)
+  state.value = normalizeState(state.value, defaultState)
 
   const totalVotes = computed(() => state.value.options.reduce((s, o) => s + o.count, 0))
   const canUndo = computed(() => state.value.history.length > 0)
@@ -164,7 +183,7 @@ export function useLocalVote() {
   }
 
   function clearAll() {
-    state.value = { ...DEFAULT_STATE, options: [], history: [], redoHistory: [] }
+    state.value = { ...defaultState, options: [], history: [], redoHistory: [] }
   }
 
   function reorderOptions(newOrder: LocalVoteOption[]) {

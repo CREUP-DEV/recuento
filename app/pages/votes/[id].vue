@@ -3,6 +3,7 @@ import { calculateWinners } from '~~/shared/utils/winnerCalculation'
 
 interface VotePageData {
   id: string
+  slug: string
   name: string
   open: boolean
   minimumVotes: number | null
@@ -10,6 +11,7 @@ interface VotePageData {
   confettiEnabled: boolean
   event: {
     id: string
+    slug: string
     name: string
   } | null
   options: Array<{
@@ -24,17 +26,18 @@ interface VotePageData {
 const { t } = useI18n()
 const localePath = useLocalePath()
 const route = useRoute()
-const voteId = route.params.id as string
+const voteParam = route.params.id as string
 
 const {
   data,
   error,
   refresh: refreshVote,
-} = await useFetch<{ data: VotePageData }>(`/api/votes/${voteId}`)
+} = await useFetch<{ data: VotePageData }>(`/api/votes/${voteParam}`)
 const vote = computed(() => data.value?.data)
+const voteId = computed(() => vote.value?.id ?? voteParam)
 
 if (!vote.value && error.value) {
-  throw createError({ statusCode: 404, statusMessage: 'Votación no encontrada' })
+  throw createError({ statusCode: 404, statusMessage: t('errors.voteNotFound') })
 }
 
 const {
@@ -63,15 +66,15 @@ watch(isHidden, (hidden) => {
 })
 
 watch(lastEvent, (event) => {
-  if (event?.type === 'vote-status-change' && event.voteId === voteId) {
+  if (event?.type === 'vote-status-change' && event.voteId === voteId.value) {
     isOpen.value = event.open
   }
-  if (event?.type === 'content-changed' && (!event.voteId || event.voteId === voteId)) {
+  if (event?.type === 'content-changed' && (!event.voteId || event.voteId === voteId.value)) {
     refreshVote()
   }
   if (
     event?.type === 'vote-closed' &&
-    event.voteId === voteId &&
+    event.voteId === voteId.value &&
     event.confettiEnabled &&
     event.winnerIds.length > 0
   ) {
@@ -111,6 +114,7 @@ const winnerOptions = computed(() =>
 const voteName = computed(() => vote.value?.name ?? t('votes.title'))
 const eventName = computed(() => vote.value?.event?.name ?? '')
 const eventId = computed(() => vote.value?.event?.id ?? null)
+const eventSlug = computed(() => vote.value?.event?.slug ?? null)
 
 const totalVotes = computed(() =>
   displayOptions.value.reduce((sum, option) => sum + option.count, 0)
@@ -127,7 +131,7 @@ useSeoMeta({
     <!-- Breadcrumb -->
     <div v-if="eventName && eventId" class="mb-4">
       <NuxtLink
-        :to="localePath(`/events/${eventId}`)"
+        :to="localePath(`/events/${eventSlug || eventId}`)"
         class="text-muted hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors"
       >
         <UIcon name="i-tabler-arrow-left" class="size-4" />

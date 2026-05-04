@@ -1,4 +1,4 @@
-import { and, eq, ne } from 'drizzle-orm'
+import { and, eq, isNull, ne } from 'drizzle-orm'
 import { db } from '#db'
 import { voteOptions } from '#db/schema'
 import { pickDefined } from '#server-utils/pickDefined'
@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   const optionId = getRouterParam(event, 'optionId')
   const voteId = getRouterParam(event, 'voteId')
   if (!eventId || !optionId || !voteId) {
-    throw createError({ statusCode: 400, message: 'IDs requeridos' })
+    throw createError({ statusCode: 400, message: getApiErrorMessage(event, 'requiredIds') })
   }
 
   const body = await readBody(event)
@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
   if (vote.open && isStructuralChange) {
     throw createError({
       statusCode: 409,
-      message: 'No se pueden cambiar las opciones mientras la votación está abierta.',
+      message: getApiErrorMessage(event, 'optionChangeWhileOpen'),
     })
   }
 
@@ -41,6 +41,7 @@ export default defineEventHandler(async (event) => {
         and(
           eq(voteOptions.voteId, voteId),
           eq(voteOptions.shortcut, data.shortcut),
+          isNull(voteOptions.deletedAt),
           ne(voteOptions.id, optionId)
         )
       )
@@ -49,7 +50,7 @@ export default defineEventHandler(async (event) => {
     if (existingShortcut) {
       throw createError({
         statusCode: 409,
-        message: 'El atajo ya está en uso en esta votación.',
+        message: getApiErrorMessage(event, 'duplicateAccessShortcut'),
       })
     }
   }
@@ -59,18 +60,24 @@ export default defineEventHandler(async (event) => {
   if (Object.keys(updateData).length === 0) {
     throw createError({
       statusCode: 400,
-      message: 'No se han proporcionado campos para actualizar',
+      message: getApiErrorMessage(event, 'missingUpdateFields'),
     })
   }
 
   const [updated] = await db
     .update(voteOptions)
     .set(updateData)
-    .where(and(eq(voteOptions.id, optionId), eq(voteOptions.voteId, voteId)))
+    .where(
+      and(
+        eq(voteOptions.id, optionId),
+        eq(voteOptions.voteId, voteId),
+        isNull(voteOptions.deletedAt)
+      )
+    )
     .returning()
 
   if (!updated) {
-    throw createError({ statusCode: 404, message: 'Opción no encontrada' })
+    throw createError({ statusCode: 404, message: getApiErrorMessage(event, 'optionNotFound') })
   }
 
   if (

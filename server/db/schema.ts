@@ -4,6 +4,7 @@ import {
   boolean,
   integer,
   timestamp,
+  jsonb,
   index,
   uniqueIndex,
   check,
@@ -20,6 +21,7 @@ export const events = pgTable(
   {
     id: text('id').primaryKey().$defaultFn(cuid),
     name: text('name').notNull(),
+    slug: text('slug').notNull(),
     banner: text('banner'),
     startDate: timestamp('start_date', { withTimezone: true, mode: 'string' }).notNull(),
     endDate: timestamp('end_date', { withTimezone: true, mode: 'string' }).notNull(),
@@ -30,10 +32,14 @@ export const events = pgTable(
       .defaultNow()
       .notNull()
       .$onUpdate(() => sql`now()`),
+    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
   },
   (table) => [
     index('idx_events_visible_order').on(table.visible, table.order),
     index('idx_events_start_date').on(table.startDate),
+    uniqueIndex('idx_events_slug_unique_active')
+      .on(table.slug)
+      .where(sql`${table.deletedAt} IS NULL`),
     check('events_date_range_valid', sql`${table.startDate} <= ${table.endDate}`),
   ]
 )
@@ -48,6 +54,7 @@ export const votes = pgTable(
       .notNull()
       .references(() => events.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
+    slug: text('slug').notNull(),
     visible: boolean('visible').default(true).notNull(),
     open: boolean('open').default(false).notNull(),
     startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
@@ -61,11 +68,15 @@ export const votes = pgTable(
       .defaultNow()
       .notNull()
       .$onUpdate(() => sql`now()`),
+    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
   },
   (table) => [
     index('idx_votes_event_id').on(table.eventId),
     index('idx_votes_open').on(table.open),
     index('idx_votes_visible_order').on(table.visible, table.order),
+    uniqueIndex('idx_votes_slug_unique_active')
+      .on(table.slug)
+      .where(sql`${table.deletedAt} IS NULL`),
     uniqueIndex('idx_votes_single_open_global')
       .on(table.open)
       .where(sql`${table.open} IS TRUE`),
@@ -104,15 +115,68 @@ export const voteOptions = pgTable(
       .defaultNow()
       .notNull()
       .$onUpdate(() => sql`now()`),
+    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
   },
   (table) => [
     index('idx_vote_options_vote_id').on(table.voteId),
     index('idx_vote_options_vote_can_win').on(table.voteId, table.canWin),
-    uniqueIndex('idx_vote_options_vote_order_unique').on(table.voteId, table.order),
+    uniqueIndex('idx_vote_options_vote_order_unique')
+      .on(table.voteId, table.order)
+      .where(sql`${table.deletedAt} IS NULL`),
     uniqueIndex('idx_vote_options_shortcut_unique')
       .on(table.voteId, table.shortcut)
-      .where(sql`${table.shortcut} IS NOT NULL`),
+      .where(sql`${table.shortcut} IS NOT NULL AND ${table.deletedAt} IS NULL`),
     check('vote_options_count_non_negative', sql`${table.count} >= 0`),
+  ]
+)
+
+// ─── Admin Access And Audit ──────────────────────────────────────────────────
+
+export const adminAccess = pgTable(
+  'admin_access',
+  {
+    id: text('id').primaryKey().$defaultFn(cuid),
+    email: text('email').notNull(),
+    active: boolean('active').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => sql`now()`),
+  },
+  (table) => [uniqueIndex('idx_admin_access_email_unique').on(table.email)]
+)
+
+export const auditLog = pgTable(
+  'audit_log',
+  {
+    id: text('id').primaryKey().$defaultFn(cuid),
+    actorEmail: text('actor_email'),
+    action: text('action').notNull(),
+    targetType: text('target_type').notNull(),
+    targetId: text('target_id').notNull(),
+    before: jsonb('before'),
+    after: jsonb('after'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('idx_audit_log_target').on(table.targetType, table.targetId),
+    index('idx_audit_log_created_at').on(table.createdAt),
+  ]
+)
+
+export const idempotencyKeys = pgTable(
+  'idempotency_keys',
+  {
+    id: text('id').primaryKey().$defaultFn(cuid),
+    scope: text('scope').notNull(),
+    key: text('key').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('idx_idempotency_keys_scope_key_unique').on(table.scope, table.key),
+    index('idx_idempotency_keys_expires_at').on(table.expiresAt),
   ]
 )
 

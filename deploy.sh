@@ -63,7 +63,7 @@ cd "${COMPOSE_DIR}"
 export IMAGE="${IMAGE}"
 
 echo "== Pull images =="
-docker compose pull
+docker compose pull "${COMPOSE_APP_SERVICE}"
 
 if [ "${APPLY_MIGRATIONS_ON_DEPLOY}" = "true" ]; then
   if docker compose config --services | grep -qx "${COMPOSE_POSTGRES_SERVICE}"; then
@@ -76,7 +76,12 @@ if [ "${APPLY_MIGRATIONS_ON_DEPLOY}" = "true" ]; then
 fi
 
 echo "== Recreate containers =="
-docker compose up -d
+docker compose up -d "${COMPOSE_APP_SERVICE}"
+
+if docker compose config --services | grep -qx "${COMPOSE_NGINX_SERVICE}"; then
+  echo "== Reload NGINX =="
+  docker compose exec -T "${COMPOSE_NGINX_SERVICE}" nginx -s reload
+fi
 EOF
 }
 
@@ -98,6 +103,7 @@ APPLY_MIGRATIONS_ON_DEPLOY="${APPLY_MIGRATIONS_ON_DEPLOY:-true}"
 COMPOSE_DIR="${COMPOSE_DIR:-$REMOTE_DIR}"
 COMPOSE_APP_SERVICE="${COMPOSE_APP_SERVICE:-app}"
 COMPOSE_POSTGRES_SERVICE="${COMPOSE_POSTGRES_SERVICE:-postgres}"
+COMPOSE_NGINX_SERVICE="${COMPOSE_NGINX_SERVICE:-nginx}"
 GHCR_LOGIN="${GHCR_LOGIN:-false}"
 
 if [ "$GHCR_LOGIN" = "true" ]; then

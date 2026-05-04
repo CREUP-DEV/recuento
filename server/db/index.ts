@@ -55,7 +55,7 @@ interface DatabasePoolStats {
   lastError: DatabasePoolErrorSummary | null
 }
 
-const pool = new Pool({
+export const databasePool = new Pool({
   connectionString,
   options: `-c statement_timeout=30000 -c timezone=${databaseTimeZone}`,
   max: configuredMaxConnections,
@@ -90,7 +90,7 @@ function buildDatabasePoolErrorSummary(error: unknown): DatabasePoolErrorSummary
   }
 }
 
-pool.on('error', (error) => {
+databasePool.on('error', (error) => {
   poolErrorState.errorCount += 1
   poolErrorState.lastErrorAt = new Date().toISOString()
   poolErrorState.lastError = buildDatabasePoolErrorSummary(error)
@@ -99,9 +99,9 @@ pool.on('error', (error) => {
 
 export function getDatabasePoolStats(): DatabasePoolStats {
   return {
-    totalCount: pool.totalCount,
-    idleCount: pool.idleCount,
-    waitingCount: pool.waitingCount,
+    totalCount: databasePool.totalCount,
+    idleCount: databasePool.idleCount,
+    waitingCount: databasePool.waitingCount,
     maxConnections: configuredMaxConnections,
     errorCount: poolErrorState.errorCount,
     lastErrorAt: poolErrorState.lastErrorAt,
@@ -109,4 +109,4 @@ export function getDatabasePoolStats(): DatabasePoolStats {
   }
 }
 
-export const db = drizzle(pool, { schema })
+export const db = drizzle(databasePool, { schema })

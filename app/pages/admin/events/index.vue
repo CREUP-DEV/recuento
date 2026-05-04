@@ -42,12 +42,10 @@ async function toggleVisibility(ev: { id: string; visible: boolean }) {
       method: 'PATCH',
       body: { visible: newVisible },
     })
-  } catch (error: unknown) {
+  } catch {
     if (entry) entry.visible = ev.visible
-    const apiMessage = (error as { data?: { message?: string } })?.data?.message
     toast.add({
       title: t('admin.toasts.visibilityError'),
-      description: apiMessage,
       color: 'error',
     })
   }
@@ -71,7 +69,7 @@ async function toggleVisibility(ev: { id: string; visible: boolean }) {
       >
         <!-- Banner thumbnail -->
         <NuxtLink
-          :to="localePath(`/admin/events/${ev.id}`)"
+          :to="localePath(`/admin/events/${ev.slug || ev.id}`)"
           class="focus-visible:ring-primary/60 absolute inset-0 rounded-xl focus-visible:ring-2 focus-visible:outline-none"
           :aria-label="t('admin.openEvent', { name: ev.name })"
         />
@@ -92,7 +90,7 @@ async function toggleVisibility(ev: { id: string; visible: boolean }) {
 
         <!-- Info -->
         <div class="min-w-0 flex-1">
-          <p class="event-title leading-snug font-semibold break-words transition-colors">
+          <p class="event-title wrap-break-words leading-snug font-semibold transition-colors">
             {{ ev.name }}
           </p>
           <p class="text-sm text-neutral-600 dark:text-neutral-400">

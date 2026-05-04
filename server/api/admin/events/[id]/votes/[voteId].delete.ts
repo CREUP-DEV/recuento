@@ -3,21 +3,24 @@ import { db } from '#db'
 import { votes } from '#db/schema'
 import { emitContentChanged, emitVoteStatusChange } from '#server-utils/sseManager'
 import { requireVoteInAdminScope } from '#server-utils/adminVoteScope'
+import { writeAuditLog } from '#server-utils/auditLog'
 
 export default defineEventHandler(async (event) => {
   const eventId = getRouterParam(event, 'id')
   const voteId = getRouterParam(event, 'voteId')
-  if (!eventId || !voteId) throw createError({ statusCode: 400, message: 'IDs requeridos' })
+  if (!eventId || !voteId)
+    throw createError({ statusCode: 400, message: getApiErrorMessage(event, 'requiredIds') })
 
   const vote = await requireVoteInAdminScope(eventId, voteId)
 
   const [deleted] = await db
-    .delete(votes)
+    .update(votes)
+    .set({ visible: false, open: false, deletedAt: new Date() })
     .where(eq(votes.id, voteId))
-    .returning({ id: votes.id, eventId: votes.eventId })
+    .returning()
 
   if (!deleted) {
-    throw createError({ statusCode: 404, message: 'Votación no encontrada' })
+    throw createError({ statusCode: 404, message: getApiErrorMessage(event, 'voteNotFound') })
   }
 
   if (vote.open) {
@@ -33,6 +36,12 @@ export default defineEventHandler(async (event) => {
   }
 
   emitContentChanged({ type: 'content-changed', scope: 'vote', eventId: deleted.eventId, voteId })
+  await writeAuditLog(event, {
+    action: 'vote.delete',
+    targetType: 'vote',
+    targetId: voteId,
+    before: vote,
+  })
 
   return { success: true }
 })

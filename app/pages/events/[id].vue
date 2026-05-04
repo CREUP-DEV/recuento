@@ -5,10 +5,11 @@ const { t } = useI18n()
 const localePath = useLocalePath()
 const { formatDate } = useLocaleFormatting()
 const route = useRoute()
-const eventId = route.params.id as string
+const eventParam = route.params.id as string
 
-const { data, error, status, refresh } = await useFetch(`/api/events/${eventId}`)
+const { data, error, status, refresh } = await useFetch(`/api/events/${eventParam}`)
 const ev = computed(() => data.value?.data)
+const eventId = computed(() => ev.value?.id ?? eventParam)
 const eventVotes = computed(() => ev.value?.votes ?? [])
 
 function getVoteWinnerIds(vote: {
@@ -28,7 +29,7 @@ function getVoteWinnerIds(vote: {
 }
 
 if (!ev.value && status.value !== 'pending') {
-  throw createError({ statusCode: 404, statusMessage: 'Evento no encontrado' })
+  throw createError({ statusCode: 404, statusMessage: t('errors.eventNotFound') })
 }
 
 useSeoMeta({
@@ -45,7 +46,7 @@ useSSEConnection({
 
     if (type === 'content-changed') {
       const data = payload as { eventId?: string }
-      if (!data.eventId || data.eventId === eventId) refresh()
+      if (!data.eventId || data.eventId === eventId.value) refresh()
     }
   },
 })
@@ -120,7 +121,7 @@ useSSEConnection({
           <div class="border-default flex items-center justify-between gap-4 border-b px-6 py-4">
             <div class="flex items-center gap-3">
               <NuxtLink
-                :to="localePath(`/votes/${vote.id}`)"
+                :to="localePath(`/votes/${vote.slug || vote.id}`)"
                 class="font-heading hover:text-creup-red-600 dark:hover:text-creup-red-400 text-lg font-semibold transition-colors"
               >
                 {{ vote.name }}
@@ -132,7 +133,7 @@ useSSEConnection({
           <div class="p-6">
             <template v-if="vote.open">
               <NuxtLink
-                :to="localePath(`/votes/${vote.id}`)"
+                :to="localePath(`/votes/${vote.slug || vote.id}`)"
                 class="flex items-center justify-center gap-3 rounded-xl bg-linear-to-r from-red-600 to-red-700 px-6 py-5 text-white transition hover:opacity-90 dark:from-red-800 dark:to-red-900"
               >
                 <span class="relative flex size-3">
