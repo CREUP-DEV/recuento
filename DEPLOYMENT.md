@@ -57,6 +57,7 @@ COMPOSE_NGINX_SERVICE=nginx
 IMAGE_NAME=ghcr.io/creup-dev/recuento
 DOCKER_PLATFORM=linux/amd64
 APPLY_MIGRATIONS_ON_DEPLOY=true
+DEPLOY_IMAGE_RETENTION=2
 ```
 
 Importante:
@@ -68,6 +69,7 @@ Importante:
 - Si NGINX corre como servicio del mismo Compose, deja `COMPOSE_NGINX_SERVICE` definido para recargarlo tras recrear la app. Esto evita que conserve DNS interno antiguo del contenedor recreado.
 - Si ya hiciste `docker login ghcr.io` en local, no pongas `GHCR_USERNAME` ni `GHCR_TOKEN` en `.env`.
 - `NUXT_SITE_URL` y la configuración de Umami se inyectan en el build local de Nuxt. Si solo las defines en el `.env` del VPS, la imagen ya saldrá sin esa configuración.
+- `DEPLOY_IMAGE_RETENTION` controla cuántas imágenes Docker de `IMAGE_NAME` se conservan en el VPS. Por defecto mantiene 2: la actual y la inmediatamente anterior para rollback. Usa `0` para desactivar la limpieza.
 
 En el VPS:
 
@@ -169,6 +171,7 @@ El script:
 5. ejecuta migraciones si están activadas
 6. recrea solo el servicio app
 7. recarga NGINX si `COMPOSE_NGINX_SERVICE` existe en el Compose
+8. borra imágenes antiguas de `IMAGE_NAME` en el VPS, conservando `DEPLOY_IMAGE_RETENTION`
 
 ## Verificar
 

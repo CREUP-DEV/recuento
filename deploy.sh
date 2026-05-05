@@ -62,6 +62,26 @@ cd "${COMPOSE_DIR}"
 
 export IMAGE="${IMAGE}"
 
+cleanup_old_images() {
+  local retention="${DEPLOY_IMAGE_RETENTION}"
+
+  if [ "\$retention" -le 0 ]; then
+    echo "== Skip old image cleanup =="
+    return
+  fi
+
+  echo "== Clean old Docker images =="
+
+  mapfile -t image_ids < <(docker image ls "${IMAGE_NAME}" --format '{{.ID}}' | awk '!seen[\$0]++')
+
+  if [ "\${#image_ids[@]}" -le "\$retention" ]; then
+    echo "Keeping \${#image_ids[@]} image(s); nothing to remove"
+    return
+  fi
+
+  printf '%s\n' "\${image_ids[@]:\$retention}" | xargs -r docker image rm -f
+}
+
 echo "== Pull images =="
 docker compose pull "${COMPOSE_APP_SERVICE}"
 
@@ -82,6 +102,8 @@ if docker compose config --services | grep -qx "${COMPOSE_NGINX_SERVICE}"; then
   echo "== Reload NGINX =="
   docker compose exec -T "${COMPOSE_NGINX_SERVICE}" nginx -s reload
 fi
+
+cleanup_old_images
 EOF
 }
 
@@ -105,6 +127,12 @@ COMPOSE_APP_SERVICE="${COMPOSE_APP_SERVICE:-app}"
 COMPOSE_POSTGRES_SERVICE="${COMPOSE_POSTGRES_SERVICE:-postgres}"
 COMPOSE_NGINX_SERVICE="${COMPOSE_NGINX_SERVICE:-nginx}"
 GHCR_LOGIN="${GHCR_LOGIN:-false}"
+DEPLOY_IMAGE_RETENTION="${DEPLOY_IMAGE_RETENTION:-2}"
+
+if ! [[ "$DEPLOY_IMAGE_RETENTION" =~ ^[0-9]+$ ]]; then
+  printf 'ERROR: DEPLOY_IMAGE_RETENTION must be a non-negative integer\n' >&2
+  exit 1
+fi
 
 if [ "$GHCR_LOGIN" = "true" ]; then
   : "${GHCR_USERNAME:?ERROR: GHCR_USERNAME is required when GHCR_LOGIN=true}"

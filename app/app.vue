@@ -22,7 +22,11 @@ useHead(() => ({
 
 <template>
   <NuxtRouteAnnouncer />
-  <NuxtLoadingIndicator color="var(--color-creup-red-500)" />
+  <NuxtLoadingIndicator
+    color="linear-gradient(90deg, var(--color-creup-red-700), var(--color-creup-red-500), var(--color-creup-blue-500))"
+    error-color="var(--color-creup-red-800)"
+    :height="3"
+  />
   <UApp :locale="currentUiLocale">
     <NuxtErrorBoundary>
       <NuxtLayout>
