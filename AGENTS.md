@@ -183,6 +183,7 @@ Never redirect from a modal form. Use `refresh()` instead.
 - `deploy.sh` expects Compose service names in `COMPOSE_APP_SERVICE` / `COMPOSE_POSTGRES_SERVICE`, not `container_name` values.
 - `COMPOSE_POSTGRES_SERVICE` is optional when production uses an external PostgreSQL instance.
 - NGINX must set `X-Forwarded-For` to `$remote_addr`, disable buffering for `/api/sse/`, and block `/health`.
+- **Image variable: `RECUENTO_IMAGE`, never a bare `IMAGE`.** Every compose file uses `${RECUENTO_IMAGE:-ghcr.io/creup-dev/recuento:latest}` and `deploy.sh` exports `RECUENTO_IMAGE`, so it can't collide with another project's image variable in a shared `.env`.
 
 ---
 

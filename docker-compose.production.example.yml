@@ -1,6 +1,7 @@
 services:
   app:
-    image: ${IMAGE:-ghcr.io/creup-dev/recuento:latest}
+    # Per-project image var, never a bare ${IMAGE} (avoids collisions in a shared .env).
+    image: ${RECUENTO_IMAGE:-ghcr.io/creup-dev/recuento:latest}
     container_name: recuento-app
     restart: unless-stopped
     env_file:

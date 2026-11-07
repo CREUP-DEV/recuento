@@ -64,7 +64,8 @@ Importante:
 
 - `COMPOSE_APP_SERVICE` y `COMPOSE_POSTGRES_SERVICE` son nombres de servicio de Compose, no `container_name`.
 - `COMPOSE_DIR` puede apuntar al directorio del proyecto o a un Compose raíz que incluya varios proyectos con `include`.
-- Cuando se usa un Compose raíz compartido, `deploy.sh` debe operar solo sobre `COMPOSE_APP_SERVICE`; no ejecutes `docker compose up -d` global con `IMAGE` exportado, porque otros servicios que usen `${IMAGE}` podrían arrancar con la imagen equivocada.
+- Cuando se usa un Compose raíz compartido, `deploy.sh` opera solo sobre `COMPOSE_APP_SERVICE`; no ejecutes `docker compose up -d` global.
+- La imagen se referencia como `${RECUENTO_IMAGE:-…}`, nunca como un `${IMAGE}` genérico, para que no colisione en un `.env` compartido. `deploy.sh` ya exporta `RECUENTO_IMAGE`.
 - Si usas PostgreSQL externo, normalmente no necesitas `COMPOSE_POSTGRES_SERVICE`.
 - Si NGINX corre como servicio del mismo Compose, deja `COMPOSE_NGINX_SERVICE` definido para recargarlo tras recrear la app. Esto evita que conserve DNS interno antiguo del contenedor recreado.
 - Si ya hiciste `docker login ghcr.io` en local, no pongas `GHCR_USERNAME` ni `GHCR_TOKEN` en `.env`.
@@ -206,7 +207,7 @@ Login falla:
 
 - `COMPOSE_APP_SERVICE` apunta al `container_name` en vez del servicio
 - `COMPOSE_DIR` no es el directorio donde está el `docker-compose.yml`
-- en un Compose raíz compartido, algún servicio usa `${IMAGE}` y se ejecutó `docker compose up -d` sin acotar al servicio
+- en un Compose raíz compartido, algún servicio usa un `${IMAGE}` genérico en vez de `${RECUENTO_IMAGE}` y se ejecutó `docker compose up -d` sin acotar al servicio
 
 Los banners desaparecen:
 

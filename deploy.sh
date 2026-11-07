@@ -60,7 +60,8 @@ set -euo pipefail
 
 cd "${COMPOSE_DIR}"
 
-export IMAGE="${IMAGE}"
+# Per-project var (compose reads ${RECUENTO_IMAGE:-...}), never a bare IMAGE.
+export RECUENTO_IMAGE="${IMAGE}"
 
 cleanup_old_images() {
   local retention="${DEPLOY_IMAGE_RETENTION}"
@@ -97,6 +98,26 @@ fi
 
 echo "== Recreate containers =="
 docker compose up -d "${COMPOSE_APP_SERVICE}"
+
+echo "== Persist RECUENTO_IMAGE in .env =="
+# Without this, RECUENTO_IMAGE only exists in this SSH session. Any later bare
+# \`docker compose up -d\` (a reboot, a manual restart, bringing up another
+# service) would resolve \${RECUENTO_IMAGE:-...} back to its ':latest' fallback
+# and silently revert this container to whatever ':latest' is cached locally --
+# which can be arbitrarily stale, since deploys pull the sha tag, never
+# ':latest'. Compose auto-loads .env from the project dir on every invocation.
+# The upsert is anchored on ^RECUENTO_IMAGE= so sibling projects' keys
+# (WEB_IMAGE, INTRANET_IMAGE) in the same shared .env are left untouched.
+RECUENTO_IMAGE_ENV_LINE="RECUENTO_IMAGE=${IMAGE}"
+if [ -f .env ] && grep -q '^RECUENTO_IMAGE=' .env; then
+  TMP_ENV="\$(mktemp)"
+  sed "s|^RECUENTO_IMAGE=.*|\$RECUENTO_IMAGE_ENV_LINE|" .env > "\$TMP_ENV"
+  cat "\$TMP_ENV" > .env
+  rm -f "\$TMP_ENV"
+else
+  printf '%s\n' "\$RECUENTO_IMAGE_ENV_LINE" >> .env
+fi
+echo "    \$RECUENTO_IMAGE_ENV_LINE"
 
 if docker compose config --services | grep -qx "${COMPOSE_NGINX_SERVICE}"; then
   echo "== Reload NGINX =="
