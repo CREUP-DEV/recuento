@@ -18,6 +18,9 @@ ENV NUXT_SITE_URL=${NUXT_SITE_URL}
 ENV NUXT_UMAMI_HOST=${NUXT_UMAMI_HOST}
 ENV NUXT_UMAMI_ID=${NUXT_UMAMI_ID}
 ENV NUXT_UMAMI_TAG=${NUXT_UMAMI_TAG}
+# Node's default heap is ~1/4 of the RAM it sees (2 GB in an 8 GB WSL/Docker Desktop VM),
+# and `nuxt build` runs out of heap below that. Builder stage only: the runtime sets its own.
+ENV NODE_OPTIONS=--max-old-space-size=4096
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
