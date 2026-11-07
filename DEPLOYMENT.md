@@ -64,6 +64,8 @@ Importante:
 
 - `COMPOSE_APP_SERVICE` y `COMPOSE_POSTGRES_SERVICE` son nombres de servicio de Compose, no `container_name`.
 - `COMPOSE_DIR` puede apuntar al directorio del proyecto o a un Compose raíz que incluya varios proyectos con `include`.
+- En el Compose raíz, `COMPOSE_POSTGRES_SERVICE` es el PostgreSQL que comparten todos los proyectos: `deploy.sh` solo lo arranca si está parado (`up -d --no-recreate --wait`), y lanza la migración y la app con `--no-deps`, para no recrearlo nunca aunque su configuración haya cambiado. Después espera hasta 150 s a que la app esté `healthy`.
+- Todos los `docker compose` del script remoto leen de `/dev/null` (el script llega por la entrada estándar y un `exec` sin eso se comía el resto), y `deploy.sh` termina con error si el lado remoto no llega al final.
 - Cuando se usa un Compose raíz compartido, `deploy.sh` opera solo sobre `COMPOSE_APP_SERVICE`; no ejecutes `docker compose up -d` global.
 - La imagen se referencia como `${RECUENTO_IMAGE:-…}`, nunca como un `${IMAGE}` genérico, para que no colisione en un `.env` compartido. `deploy.sh` ya exporta `RECUENTO_IMAGE`.
 - Si usas PostgreSQL externo, normalmente no necesitas `COMPOSE_POSTGRES_SERVICE`.
